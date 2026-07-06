@@ -1,0 +1,40 @@
+NEITS-RMS/
+│
+├── README.md      ← Paste the README content here
+├── .gitignore     ← Paste the .gitignore content here
+├── LICENSE        ← Leave empty for now
+│
+├── frontend/
+├── backend/
+├── database/
+├── docker/
+├── docs/
+├── nginx/
+└── n8n/
+# Dependencies
+node_modules/
+
+# Environment variables
+.env
+.env.*
+
+# Build output
+dist/
+build/
+
+# Coverage reports
+coverage/
+
+# Log files
+*.log
+
+# VS Code settings
+.vscode/
+
+# Operating system files
+.DS_Store
+Thumbs.db
+
+# Project-specific dependencies
+backend/node_modules/
+frontend/node_modules/
