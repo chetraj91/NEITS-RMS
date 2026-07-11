@@ -7,66 +7,59 @@ datasource db {
   provider = "postgresql"
 }
 
-enum UserRole {
-  ADMIN
-  RECEPTION
-  TECHNICIAN
-}
-
-enum JobStatus {
-  RECEIVED
-  DIAGNOSING
-  WAITING_APPROVAL
-  WAITING_PARTS
-  REPAIRING
-  QC
-  READY
-  DELIVERED
-  CANCELLED
-}
-
-model User {
-  id         Int       @id @default(autoincrement())
-  fullName   String
-  email      String    @unique
-  password   String
-  role       UserRole
-  phone      String?
-  isActive   Boolean   @default(true)
-  createdAt  DateTime  @default(now())
-
-  repairJobs RepairJob[]
-}
-
 model Customer {
-  id         Int      @id @default(autoincrement())
-  customerId String   @unique
+  id         String      @id @default(cuid())
   fullName   String
-  phone      String   @unique
+  phone      String      @unique
   email      String?
   address    String?
-  panVat     String?
-  createdAt  DateTime @default(now())
+  createdAt  DateTime    @default(now())
 
-  repairJobs RepairJob[]
+  jobs RepairJob[]
+}
+
+model Technician {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?
+  email     String?
+
+  jobs RepairJob[]
 }
 
 model RepairJob {
-  id             Int       @id @default(autoincrement())
-  jobNumber      String    @unique
-  brand          String
-  model          String
-  serialNumber   String?
-  problem        String
-  accessories    String?
-  estimatedCost  Float?
-  status         JobStatus @default(RECEIVED)
+  id              String   @id @default(cuid())
+  jobNumber       Int      @unique @default(autoincrement())
 
-  customerId Int
-  customer   Customer @relation(fields: [customerId], references: [id])
+  customerId      String
+  technicianId    String?
 
-  technicianId Int?
-  technician   User? @relation(fields: [technicianId], references: [id])
+  deviceBrand     String
+  deviceModel     String
+  serialNumber    String?
+
+  problem         String
+  diagnosis       String?
+
+  estimateAmount  Float?
+  repairCost      Float?
+
+  status          String   @default("Received")
+
+  paymentStatus   String   @default("Pending")
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  customer Customer @relation(fields:[customerId], references:[id])
+  technician Technician? @relation(fields:[technicianId], references:[id])
+}
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  email     String   @unique
+  password  String
+  role      String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
