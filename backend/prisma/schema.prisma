@@ -1,8 +1,3 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
-
-// Get a free hosted Postgres database in seconds: `npx create-db`
-
 generator client {
   provider = "prisma-client"
   output   = "../src/generated/prisma"
@@ -10,4 +5,68 @@ generator client {
 
 datasource db {
   provider = "postgresql"
+}
+
+enum UserRole {
+  ADMIN
+  RECEPTION
+  TECHNICIAN
+}
+
+enum JobStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_APPROVAL
+  WAITING_PARTS
+  REPAIRING
+  QC
+  READY
+  DELIVERED
+  CANCELLED
+}
+
+model User {
+  id        Int       @id @default(autoincrement())
+  fullName  String
+  email     String    @unique
+  password  String
+  role      UserRole
+  phone     String?
+  createdAt DateTime  @default(now())
+
+  repairJobs RepairJob[]
+}
+
+model Customer {
+  id         Int      @id @default(autoincrement())
+  customerId String   @unique
+  fullName   String
+  phone      String   @unique
+  email      String?
+  address    String?
+  panVat     String?
+  createdAt  DateTime @default(now())
+
+  repairJobs RepairJob[]
+}
+
+model RepairJob {
+  id             Int       @id @default(autoincrement())
+  jobNumber      String    @unique
+  brand          String
+  model          String
+  serialNumber   String?
+  problem        String
+  accessories    String?
+  estimatedCost  Float?
+  status         JobStatus @default(RECEIVED)
+
+  customerId Int
+  customer   Customer @relation(fields: [customerId], references: [id])
+
+  technicianId Int?
+  technician   User? @relation(fields: [technicianId], references: [id])
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
