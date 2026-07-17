@@ -7,11 +7,16 @@ export async function login(req: Request, res: Response) {
 
     const result = await authService.login(email, password);
 
-    res.json({
-      success: true,
-      message: "Login successful",
-      data: result,
-    });
+    const { password, ...safeUser } = user;
+
+res.json({
+  success: true,
+  message: "Login successful",
+  data: {
+    token,
+    user: safeUser,
+  },
+});
   } catch (error: any) {
     res.status(401).json({
       success: false,
