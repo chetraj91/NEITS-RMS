@@ -7,16 +7,17 @@ export async function login(req: Request, res: Response) {
 
     const result = await authService.login(email, password);
 
-    const { password, ...safeUser } = user;
+    // Hide the password before sending the user object
+    const { password: _, ...safeUser } = result.user;
 
-res.json({
-  success: true,
-  message: "Login successful",
-  data: {
-    token,
-    user: safeUser,
-  },
-});
+    res.json({
+      success: true,
+      message: "Login successful",
+      data: {
+        token: result.token,
+        user: safeUser,
+      },
+    });
   } catch (error: any) {
     res.status(401).json({
       success: false,
