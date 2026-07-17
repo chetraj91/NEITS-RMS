@@ -8,14 +8,31 @@ datasource db {
 }
 
 model Customer {
-  id         String      @id @default(cuid())
-  fullName   String
-  phone      String      @unique
-  email      String?
-  address    String?
-  createdAt  DateTime    @default(now())
+  id              String   @id @default(cuid())
 
-  jobs RepairJob[]
+  customerCode    String   @unique
+
+  fullName        String
+
+  companyName     String?
+
+  phone           String   @unique
+
+  alternatePhone  String?
+
+  email           String?
+
+  address         String?
+
+  panVat          String?
+
+  notes           String?
+
+  repairJobs      RepairJob[]
+
+  createdAt       DateTime @default(now())
+
+  updatedAt       DateTime @updatedAt
 }
 
 model Technician {
