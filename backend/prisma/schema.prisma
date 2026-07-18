@@ -99,11 +99,19 @@ model Technician {
 
   name String
 
-  phone String?
+  phone String? @unique
 
-  email String?
+  email String? @unique
+
+  specialization String?
+
+  status String @default("Active")
 
   repairJobs RepairJob[]
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
 }
 
 model User {
