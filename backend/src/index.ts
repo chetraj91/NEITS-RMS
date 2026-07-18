@@ -1,17 +1,22 @@
 import express from "express";
 import cors from "cors";
 import { env } from "./config/env";
+
 import authRoutes from "./routes/auth.routes";
 import customerRoutes from "./routes/customer.routes";
+import repairJobRoutes from "./routes/repairJob.routes";
 
 const app = express();
 
 app.use(cors());
 app.use(express.json());
 
+// API Routes
 app.use("/api/auth", authRoutes);
 app.use("/api/customers", customerRoutes);
+app.use("/api/repair-jobs", repairJobRoutes);
 
+// Home Route
 app.get("/", (req, res) => {
   res.json({
     success: true,
@@ -21,6 +26,7 @@ app.get("/", (req, res) => {
   });
 });
 
+// Start Server
 app.listen(env.PORT, () => {
   console.log(`🚀 Server running on port ${env.PORT}`);
 });
