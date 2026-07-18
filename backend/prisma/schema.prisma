@@ -8,75 +8,110 @@ datasource db {
 }
 
 model Customer {
-  id              String   @id @default(cuid())
+  id String @id @default(cuid())
 
-  customerCode    String   @unique
+  customerCode String @unique
 
-  fullName        String
+  fullName String
 
-  companyName     String?
+  companyName String?
 
-  phone           String   @unique
+  phone String @unique
 
-  alternatePhone  String?
+  alternatePhone String?
 
-  email           String?
+  email String?
 
-  address         String?
+  address String?
 
-  panVat          String?
+  panVat String?
 
-  notes           String?
+  notes String?
 
-  repairJobs      RepairJob[]
+  repairJobs RepairJob[]
 
-  createdAt       DateTime @default(now())
+  createdAt DateTime @default(now())
 
-  updatedAt       DateTime @updatedAt
+  updatedAt DateTime @updatedAt
 }
 
-model Technician {
-  id        String   @id @default(cuid())
-  name      String
-  phone     String?
-  email     String?
-
-  jobs RepairJob[]
+enum JobStatus {
+  RECEIVED
+  DIAGNOSING
+  WAITING_APPROVAL
+  REPAIRING
+  READY
+  DELIVERED
+  CANCELLED
 }
 
 model RepairJob {
-  id              String   @id @default(cuid())
-  jobNumber       Int      @unique @default(autoincrement())
+  id String @id @default(cuid())
 
-  customerId      String
-  technicianId    String?
+  jobNumber String @unique
 
-  deviceBrand     String
-  deviceModel     String
-  serialNumber    String?
+  customerId   String
+  technicianId String?
 
-  problem         String
-  diagnosis       String?
+  customer   Customer    @relation(fields: [customerId], references: [id])
+  technician Technician? @relation(fields: [technicianId], references: [id])
 
-  estimateAmount  Float?
-  repairCost      Float?
+  brand String
+  model String
 
-  status          String   @default("Received")
+  serialNumber String?
 
-  paymentStatus   String   @default("Pending")
+  processor String?
+  ram       String?
+  storage   String?
 
-  createdAt       DateTime @default(now())
-  updatedAt       DateTime @updatedAt
+  color String?
 
-  customer Customer @relation(fields:[customerId], references:[id])
-  technician Technician? @relation(fields:[technicianId], references:[id])
+  charger Boolean @default(false)
+  bag     Boolean @default(false)
+
+  complaint String
+
+  diagnosis String?
+
+  estimate Float?
+
+  advance Float @default(0)
+
+  totalAmount Float?
+
+  dueAmount Float?
+
+  status JobStatus @default(RECEIVED)
+
+  receivedDate DateTime @default(now())
+
+  deliveryDate DateTime?
+
+  notes String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
+
+model Technician {
+  id String @id @default(cuid())
+
+  name String
+
+  phone String?
+
+  email String?
+
+  repairJobs RepairJob[]
+}
+
 model User {
-  id        String   @id @default(cuid())
-  name      String
-  email     String   @unique
-  password  String
-  role      String
+  id       String @id @default(cuid())
+  name     String
+  email    String @unique
+  password String
+  role     String
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
