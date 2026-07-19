@@ -45,6 +45,12 @@ enum JobStatus {
   CANCELLED
 }
 
+enum InventoryType {
+  PRODUCT
+  SPARE_PART
+  CONSUMABLE
+}
+
 model RepairJob {
   id String @id @default(cuid())
 
@@ -114,6 +120,45 @@ model Technician {
   updatedAt DateTime @updatedAt
 }
 
+model Inventory {
+  id String @id @default(cuid())
+
+  itemCode String @unique
+
+  itemName String
+
+  itemType InventoryType
+
+  category String
+
+  brand String?
+
+  model String?
+
+  purchasePrice Float @default(0)
+
+  sellingPrice Float @default(0)
+
+  quantity Int @default(0)
+
+  minimumStock Int @default(0)
+
+  supplier String?
+
+  location String?
+
+  barcode String?
+
+  unit String @default("PCS")
+
+  description String?
+
+  status String @default("Active")
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
 model User {
   id       String @id @default(cuid())
   name     String
