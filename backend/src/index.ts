@@ -10,6 +10,7 @@ import inventoryRoutes from "./routes/inventory.routes";
 import supplierRoutes from "./routes/supplier.routes";
 import purchaseRoutes from "./routes/purchase.routes";
 import saleRoutes from "./routes/sale.routes";
+import repairPartRoutes from "./routes/repairPart.routes";
 
 const app = express();
 
@@ -25,6 +26,7 @@ app.use("/api/inventory", inventoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/sales", saleRoutes);
+app.use("/api/repair-parts", repairPartRoutes);
 
 // Home Route
 app.get("/", (req, res) => {
