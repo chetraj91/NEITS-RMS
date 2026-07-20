@@ -9,6 +9,7 @@ import technicianRoutes from "./routes/technician.routes";
 import inventoryRoutes from "./routes/inventory.routes";
 import supplierRoutes from "./routes/supplier.routes";
 import purchaseRoutes from "./routes/purchase.routes";
+import saleRoutes from "./routes/sale.routes";
 
 const app = express();
 
@@ -23,6 +24,7 @@ app.use("/api/technicians", technicianRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchases", purchaseRoutes);
+app.use("/api/sales", saleRoutes);
 
 // Home Route
 app.get("/", (req, res) => {
