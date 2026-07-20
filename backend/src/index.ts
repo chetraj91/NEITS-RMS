@@ -11,6 +11,7 @@ import supplierRoutes from "./routes/supplier.routes";
 import purchaseRoutes from "./routes/purchase.routes";
 import saleRoutes from "./routes/sale.routes";
 import repairPartRoutes from "./routes/repairPart.routes";
+import invoiceRoutes from "./routes/invoice.routes";
 
 const app = express();
 
@@ -27,6 +28,7 @@ app.use("/api/suppliers", supplierRoutes);
 app.use("/api/purchases", purchaseRoutes);
 app.use("/api/sales", saleRoutes);
 app.use("/api/repair-parts", repairPartRoutes);
+app.use("/api/invoices", invoiceRoutes);
 
 // Home Route
 app.get("/", (req, res) => {
