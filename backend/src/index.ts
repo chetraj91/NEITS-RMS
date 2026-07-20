@@ -8,6 +8,7 @@ import repairJobRoutes from "./routes/repairJob.routes";
 import technicianRoutes from "./routes/technician.routes";
 import inventoryRoutes from "./routes/inventory.routes";
 import supplierRoutes from "./routes/supplier.routes";
+import purchaseRoutes from "./routes/purchase.routes";
 
 const app = express();
 
@@ -21,6 +22,7 @@ app.use("/api/repair-jobs", repairJobRoutes);
 app.use("/api/technicians", technicianRoutes);
 app.use("/api/inventory", inventoryRoutes);
 app.use("/api/suppliers", supplierRoutes);
+app.use("/api/purchases", purchaseRoutes);
 
 // Home Route
 app.get("/", (req, res) => {
