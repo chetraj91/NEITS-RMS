@@ -97,10 +97,28 @@ model RepairJob {
   deliveryDate DateTime?
 
   notes String?
+  partsUsed RepairPart[]
 
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
+}
+model RepairPart {
+  id String @id @default(cuid())
+
+  repairJobId String
+  inventoryId String
+
+  repairJob RepairJob @relation(fields: [repairJobId], references: [id])
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+
+  quantity Int
+
+  unitPrice Float
+
+  total Float
+
+  createdAt DateTime @default(now())
 }
 
 model Technician {
@@ -161,6 +179,8 @@ model Inventory {
   purchaseItems PurchaseItem[]
 
   saleItems SaleItem[]
+
+ repairParts RepairPart[]
 
   createdAt DateTime @default(now())
 
