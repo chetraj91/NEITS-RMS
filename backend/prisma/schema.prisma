@@ -155,6 +155,8 @@ model Inventory {
 
   status String @default("Active")
 
+  purchaseItems PurchaseItem[]
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
@@ -217,10 +219,36 @@ model Purchase {
 
   remarks String?
 
+  items PurchaseItem[]
+
   createdAt DateTime @default(now())
 
   updatedAt DateTime @updatedAt
 }
+model PurchaseItem {
+  id String @id @default(cuid())
+
+  purchaseId String
+
+  inventoryId String
+
+  purchase Purchase @relation(fields: [purchaseId], references: [id])
+
+  inventory Inventory @relation(fields: [inventoryId], references: [id])
+
+  quantity Int
+
+  purchasePrice Float
+
+  sellingPrice Float
+
+  total Float
+
+  createdAt DateTime @default(now())
+
+  updatedAt DateTime @updatedAt
+}
+
 model User {
   id       String @id @default(cuid())
   name     String
