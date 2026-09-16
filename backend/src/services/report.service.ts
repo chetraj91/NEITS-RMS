@@ -145,13 +145,9 @@ export async function getDashboardReport(
     );
 
   // Customer outstanding after Sales Returns
-  const salesDue =
-    Math.max(
-      0,
-      originalSalesDue -
-        totalSalesReturns
-    );
-
+  // Sales return amounts must only reduce the due of their
+  // corresponding sale, not the overall customer due.
+  const salesDue = originalSalesDue;
    // =====================================================
   // PURCHASES
   // =====================================================
