@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useNavigate } from "react-router-dom";
+
 import api from "../api/api";
 
 export default function LoginPage() {
-  const navigate = useNavigate();
 
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
@@ -32,7 +31,7 @@ export default function LoginPage() {
         res.data.data.user
       );
 
-      navigate("/dashboard");
+      window.location.href = "/dashboard";
     } catch (err: any) {
       console.error(err);
 
