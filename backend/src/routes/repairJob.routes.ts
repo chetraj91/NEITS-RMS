@@ -1,4 +1,5 @@
 import { Router } from "express";
+
 import {
   createRepairJob,
   getRepairJobs,
@@ -7,21 +8,52 @@ import {
   deleteRepairJob,
 } from "../controllers/repairJob.controller";
 
+import {
+  authenticate,
+  requirePermission,
+} from "../middleware/auth.middleware";
+
 const router = Router();
 
-// Create a new repair job
+router.use(
+  authenticate,
+  requirePermission(
+    "repair-jobs"
+  )
+);
+
+// =====================================
+// CREATE NEW REPAIR JOB
+// POST /api/repairJobs
+// =====================================
 router.post("/", createRepairJob);
 
-// Get all repair jobs
+// =====================================
+// GET ALL REPAIR JOBS
+// GET /api/repairJobs
+// =====================================
 router.get("/", getRepairJobs);
 
-// Get a single repair job
+// =====================================
+// GET SINGLE REPAIR JOB
+// GET /api/repairJobs/:id
+// =====================================
 router.get("/:id", getRepairJob);
 
-// Update a repair job
-router.put("/:id", updateRepairJob);
+// =====================================
+// UPDATE REPAIR JOB
+// PUT /api/repairJobs/:id
+// =====================================
+router.put(
+  "/:id",
+  requirePermission("repair-jobs.edit"),
+  updateRepairJob
+);
 
-// Delete a repair job
+// =====================================
+// DELETE REPAIR JOB
+// DELETE /api/repairJobs/:id
+// =====================================
 router.delete("/:id", deleteRepairJob);
 
 export default router;

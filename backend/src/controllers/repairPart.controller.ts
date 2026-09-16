@@ -1,13 +1,18 @@
 import { Request, Response } from "express";
-
 import {
   addRepairPart,
   getRepairParts,
   deleteRepairPart,
 } from "../services/repairPart.service";
 
-export async function create(req: Request, res: Response) {
+export async function create(
+  req: Request,
+  res: Response
+): Promise<void> {
   try {
+    console.log("========== CREATE REPAIR PART ==========");
+    console.log(req.body);
+
     const repairPart = await addRepairPart(req.body);
 
     res.status(201).json({
@@ -16,6 +21,8 @@ export async function create(req: Request, res: Response) {
       data: repairPart,
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(400).json({
       success: false,
       message: error.message,
@@ -23,9 +30,12 @@ export async function create(req: Request, res: Response) {
   }
 }
 
-export async function getAll(req: Request, res: Response) {
+export async function getAll(
+  req: Request,
+  res: Response
+): Promise<void> {
   try {
-    const repairJobId = req.params.repairJobId as string;
+    const repairJobId = String(req.params.repairJobId);
 
     const repairParts = await getRepairParts(repairJobId);
 
@@ -34,6 +44,8 @@ export async function getAll(req: Request, res: Response) {
       data: repairParts,
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(400).json({
       success: false,
       message: error.message,
@@ -41,9 +53,12 @@ export async function getAll(req: Request, res: Response) {
   }
 }
 
-export async function remove(req: Request, res: Response) {
+export async function remove(
+  req: Request,
+  res: Response
+): Promise<void> {
   try {
-    const id = req.params.id as string;
+    const id = String(req.params.id);
 
     await deleteRepairPart(id);
 
@@ -52,6 +67,8 @@ export async function remove(req: Request, res: Response) {
       message: "Repair part removed successfully.",
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(400).json({
       success: false,
       message: error.message,

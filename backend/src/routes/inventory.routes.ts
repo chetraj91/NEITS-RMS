@@ -8,7 +8,19 @@ import {
   remove,
 } from "../controllers/inventory.controller";
 
+import {
+  authenticate,
+  requirePermission,
+} from "../middleware/auth.middleware";
+
 const router = Router();
+
+router.use(
+  authenticate,
+  requirePermission(
+    "inventory"
+  )
+);
 
 // Create Inventory
 router.post("/", create);

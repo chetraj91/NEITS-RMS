@@ -1,17 +1,50 @@
 import { Router } from "express";
 
-import * as saleController from "../controllers/sale.controller";
+import * as saleController
+  from "../controllers/sale.controller";
+
+  import {
+  authenticate,
+  requirePermission,
+} from "../middleware/auth.middleware";
 
 const router = Router();
 
-router.post("/", saleController.create);
+router.use(
+  authenticate,
+  requirePermission(
+    "sales"
+  )
+);
 
-router.get("/", saleController.getAll);
+router.post(
+  "/",
+  saleController.create
+);
 
-router.get("/:id", saleController.getOne);
+router.get(
+  "/",
+  saleController.getAll
+);
 
-router.put("/:id", saleController.update);
+router.get(
+  "/:id",
+  saleController.getOne
+);
 
-router.delete("/:id", saleController.remove);
+router.post(
+  "/:id/payment",
+  saleController.receivePayment
+);
+
+router.put(
+  "/:id",
+  saleController.update
+);
+
+router.delete(
+  "/:id",
+  saleController.remove
+);
 
 export default router;

@@ -1,22 +1,51 @@
 import { prisma } from "../config/prisma";
+import { triggerAutomaticExcelBackup } from "./automaticExcelBackup.service";
 
 export async function createSupplier(data: any) {
-  const exists = await prisma.supplier.findFirst({
-    where: {
-      OR: [
-        { phone: data.phone },
-        ...(data.email ? [{ email: data.email }] : [])
-      ]
-    }
-  });
+  const phone = String(data.phone ?? "").trim();
+  const email = String(data.email ?? "").trim();
 
-  if (exists) {
-    throw new Error("Supplier already exists.");
+  const duplicateConditions: any[] = [];
+
+  if (phone) {
+    duplicateConditions.push({
+      phone,
+    });
   }
 
-  return prisma.supplier.create({
-    data
+  if (email) {
+    duplicateConditions.push({
+      email,
+    });
+  }
+
+  if (duplicateConditions.length > 0) {
+    const exists = await prisma.supplier.findFirst({
+      where: {
+        OR: duplicateConditions,
+      },
+    });
+
+    if (exists) {
+      throw new Error("Supplier already exists.");
+    }
+  }
+
+  const supplier = await prisma.supplier.create({
+    data: {
+      ...data,
+      phone: phone || "",
+      email: email || "",
+    },
   });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return supplier;
 }
 
 export async function getSuppliers() {
@@ -36,18 +65,34 @@ export async function getSupplier(id: string) {
 }
 
 export async function updateSupplier(id: string, data: any) {
-  return prisma.supplier.update({
+  const supplier = await prisma.supplier.update({
     where: {
       id
     },
     data
   });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return supplier;
 }
 
 export async function deleteSupplier(id: string) {
-  return prisma.supplier.delete({
+  const supplier = await prisma.supplier.delete({
     where: {
       id
     }
   });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return supplier;
 }

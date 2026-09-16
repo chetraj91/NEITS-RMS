@@ -1,16 +1,3 @@
-NEITS-RMS/
-│
-├── README.md      ← Paste the README content here
-├── .gitignore     ← Paste the .gitignore content here
-├── LICENSE        ← Leave empty for now
-│
-├── frontend/
-├── backend/
-├── database/
-├── docker/
-├── docs/
-├── nginx/
-└── n8n/
 # Dependencies
 node_modules/
 
@@ -38,3 +25,11 @@ Thumbs.db
 # Project-specific dependencies
 backend/node_modules/
 frontend/node_modules/
+# Temporary backup / debug files
+*.backup*
+*_backup.*
+*_backup
+*.bak
+check*.ts
+debug_*.txt
+npx

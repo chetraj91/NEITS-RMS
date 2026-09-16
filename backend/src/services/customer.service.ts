@@ -1,4 +1,5 @@
 import { prisma } from "../config/prisma";
+import { triggerAutomaticExcelBackup } from "./automaticExcelBackup.service";
 
 export async function createCustomer(data: {
   fullName: string;
@@ -17,19 +18,34 @@ export async function createCustomer(data: {
   });
 
   if (exists) {
-    throw new Error("Customer already exists with this phone number.");
+    throw new Error(
+      "Customer already exists with this phone number."
+    );
   }
 
-  const customerCount = await prisma.customer.count();
+  const customerCount =
+    await prisma.customer.count();
 
-  const customerCode = `CUS-${String(customerCount + 1).padStart(5, "0")}`;
+  const customerCode =
+    `CUS-${String(
+      customerCount + 1
+    ).padStart(5, "0")}`;
 
-  return prisma.customer.create({
-    data: {
-      customerCode,
-      ...data,
-    },
-  });
+  const customer =
+    await prisma.customer.create({
+      data: {
+        customerCode,
+        ...data,
+      },
+    });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return customer;
 }
 
 export async function getCustomers() {
@@ -40,7 +56,9 @@ export async function getCustomers() {
   });
 }
 
-export async function getCustomer(id: string) {
+export async function getCustomer(
+  id: string
+) {
   return prisma.customer.findUnique({
     where: {
       id,
@@ -48,19 +66,84 @@ export async function getCustomer(id: string) {
   });
 }
 
-export async function updateCustomer(id: string, data: any) {
-  return prisma.customer.update({
-    where: {
-      id,
-    },
-    data,
-  });
+export async function updateCustomer(
+  id: string,
+  data: any
+) {
+  const customer =
+    await prisma.customer.update({
+      where: {
+        id,
+      },
+      data,
+    });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return customer;
 }
 
-export async function deleteCustomer(id: string) {
-  return prisma.customer.delete({
+export async function deleteCustomer(
+  id: string
+) {
+  const customer =
+    await prisma.customer.delete({
+      where: {
+        id,
+      },
+    });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return customer;
+}
+
+// ==========================================
+// SEARCH CUSTOMERS
+// ==========================================
+
+export async function searchCustomers(
+  query: string
+) {
+  return prisma.customer.findMany({
     where: {
-      id,
+      OR: [
+        {
+          fullName: {
+            contains: query,
+            mode: "insensitive",
+          },
+        },
+        {
+          phone: {
+            contains: query,
+          },
+        },
+        {
+          email: {
+            contains: query,
+            mode: "insensitive",
+          },
+        },
+        {
+          customerCode: {
+            contains: query,
+            mode: "insensitive",
+          },
+        },
+      ],
     },
+    orderBy: {
+      fullName: "asc",
+    },
+    take: 10,
   });
 }

@@ -1,9 +1,18 @@
 import { prisma } from "../config/prisma";
+import { triggerAutomaticExcelBackup } from "./automaticExcelBackup.service";
 
 export async function createTechnician(data: any) {
-  return prisma.technician.create({
+  const technician = await prisma.technician.create({
     data,
   });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return technician;
 }
 
 export async function getTechnicians() {
@@ -20,15 +29,34 @@ export async function getTechnician(id: string) {
   });
 }
 
-export async function updateTechnician(id: string, data: any) {
-  return prisma.technician.update({
+export async function updateTechnician(
+  id: string,
+  data: any
+) {
+  const technician = await prisma.technician.update({
     where: { id },
     data,
   });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return technician;
 }
 
 export async function deleteTechnician(id: string) {
-  return prisma.technician.delete({
+  const technician = await prisma.technician.delete({
     where: { id },
   });
+
+  // =====================================================
+  // AUTOMATIC EXCEL BACKUP
+  // =====================================================
+
+  triggerAutomaticExcelBackup();
+
+  return technician;
 }

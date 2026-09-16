@@ -2,7 +2,19 @@ import { Router } from "express";
 
 import * as supplierController from "../controllers/supplier.controller";
 
+import {
+  authenticate,
+  requirePermission,
+} from "../middleware/auth.middleware";
+
 const router = Router();
+
+router.use(
+  authenticate,
+  requirePermission(
+    "suppliers"
+  )
+);
 
 router.post("/", supplierController.create);
 

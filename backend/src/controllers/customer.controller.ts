@@ -1,7 +1,13 @@
 import { Request, Response } from "express";
 import * as customerService from "../services/customer.service";
 
-export async function createCustomer(req: Request, res: Response) {
+// ==========================================
+// Create Customer
+// ==========================================
+export async function createCustomer(
+  req: Request,
+  res: Response
+) {
   try {
     const customer = await customerService.createCustomer(req.body);
 
@@ -10,15 +16,21 @@ export async function createCustomer(req: Request, res: Response) {
       message: "Customer created successfully.",
       data: customer,
     });
-  } catch (error: any) {
+  } catch (err: any) {
     res.status(400).json({
       success: false,
-      message: error.message,
+      message: err.message,
     });
   }
 }
 
-export async function getCustomers(req: Request, res: Response) {
+// ==========================================
+// Get All Customers
+// ==========================================
+export async function getCustomers(
+  req: Request,
+  res: Response
+) {
   try {
     const customers = await customerService.getCustomers();
 
@@ -26,17 +38,25 @@ export async function getCustomers(req: Request, res: Response) {
       success: true,
       data: customers,
     });
-  } catch (error: any) {
+  } catch (err: any) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: err.message,
     });
   }
 }
 
-export async function getCustomer(req: Request, res: Response) {
+// ==========================================
+// Get Single Customer
+// ==========================================
+export async function getCustomer(
+  req: Request,
+  res: Response
+) {
   try {
-    const customer = await customerService.getCustomer(req.params.id as string);
+    const customer = await customerService.getCustomer(
+      req.params.id as string
+    );
 
     if (!customer) {
       return res.status(404).json({
@@ -49,15 +69,21 @@ export async function getCustomer(req: Request, res: Response) {
       success: true,
       data: customer,
     });
-  } catch (error: any) {
+  } catch (err: any) {
     res.status(500).json({
       success: false,
-      message: error.message,
+      message: err.message,
     });
   }
 }
 
-export async function updateCustomer(req: Request, res: Response) {
+// ==========================================
+// Update Customer
+// ==========================================
+export async function updateCustomer(
+  req: Request,
+  res: Response
+) {
   try {
     const customer = await customerService.updateCustomer(
       req.params.id as string,
@@ -69,26 +95,59 @@ export async function updateCustomer(req: Request, res: Response) {
       message: "Customer updated successfully.",
       data: customer,
     });
-  } catch (error: any) {
+  } catch (err: any) {
     res.status(400).json({
       success: false,
-      message: error.message,
+      message: err.message,
     });
   }
 }
 
-export async function deleteCustomer(req: Request, res: Response) {
+// ==========================================
+// Delete Customer
+// ==========================================
+export async function deleteCustomer(
+  req: Request,
+  res: Response
+) {
   try {
-    await customerService.deleteCustomer(req.params.id as string);
+    await customerService.deleteCustomer(
+      req.params.id as string
+    );
 
     res.json({
       success: true,
       message: "Customer deleted successfully.",
     });
-  } catch (error: any) {
+  } catch (err: any) {
     res.status(400).json({
       success: false,
-      message: error.message,
+      message: err.message,
+    });
+  }
+}
+
+// ==========================================
+// Search Customers
+// ==========================================
+export async function searchCustomers(
+  req: Request,
+  res: Response
+) {
+  try {
+    const q = String(req.query.q || "");
+
+    const customers =
+      await customerService.searchCustomers(q);
+
+    res.json({
+      success: true,
+      data: customers,
+    });
+  } catch (err: any) {
+    res.status(500).json({
+      success: false,
+      message: err.message,
     });
   }
 }

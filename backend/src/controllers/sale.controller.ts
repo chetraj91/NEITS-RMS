@@ -6,93 +6,193 @@ import {
   getSale,
   updateSale,
   deleteSale,
+  receiveSalePayment,
 } from "../services/sale.service";
 
-export async function create(req: Request, res: Response) {
-  try {
-    const sale = await createSale(req.body);
+// =====================================================
+// CREATE SALE
+// =====================================================
 
-    res.status(201).json({
+export async function create(
+  req: Request,
+  res: Response
+) {
+  try {
+    const sale =
+      await createSale(
+        req.body
+      );
+
+    return res.status(201).json({
       success: true,
-      message: "Sale created successfully.",
+      message:
+        "Sale created successfully.",
       data: sale,
     });
   } catch (error: any) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
     });
   }
 }
 
-export async function getAll(req: Request, res: Response) {
-  try {
-    const sales = await getSales();
+// =====================================================
+// GET ALL SALES
+// =====================================================
 
-    res.json({
+export async function getAll(
+  req: Request,
+  res: Response
+) {
+  try {
+    const sales =
+      await getSales();
+
+    return res.json({
       success: true,
       data: sales,
     });
   } catch (error: any) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
     });
   }
 }
 
-export async function getOne(req: Request, res: Response) {
+// =====================================================
+// GET ONE SALE
+// =====================================================
+
+export async function getOne(
+  req: Request,
+  res: Response
+) {
   try {
-    const sale = await getSale(req.params.id as string);
+    const sale =
+      await getSale(
+        req.params.id as string
+      );
 
     if (!sale) {
       return res.status(404).json({
         success: false,
-        message: "Sale not found.",
+        message:
+          "Sale not found.",
       });
     }
 
-    res.json({
+    return res.json({
       success: true,
       data: sale,
     });
   } catch (error: any) {
-    res.status(500).json({
+    return res.status(500).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
     });
   }
 }
 
-export async function update(req: Request, res: Response) {
-  try {
-    const sale = await updateSale(req.params.id as string, req.body);
+// =====================================================
+// UPDATE SALE
+// =====================================================
 
-    res.json({
+export async function update(
+  req: Request,
+  res: Response
+) {
+  try {
+    const sale =
+      await updateSale(
+        req.params.id as string,
+        req.body
+      );
+
+    return res.json({
       success: true,
-      message: "Sale updated successfully.",
+      message:
+        "Sale updated successfully.",
       data: sale,
     });
   } catch (error: any) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
     });
   }
 }
 
-export async function remove(req: Request, res: Response) {
-  try {
-    await deleteSale(req.params.id as string);
+// =====================================================
+// RECEIVE PAYMENT
+// =====================================================
 
-    res.json({
+export async function receivePayment(
+  req: Request,
+  res: Response
+) {
+  try {
+    const sale =
+      await receiveSalePayment(
+        req.params.id as string,
+        {
+          amount:
+            Number(
+              req.body.amount
+            ),
+
+          method:
+            req.body.method ||
+            "CASH",
+
+          remarks:
+            req.body.remarks,
+        }
+      );
+
+    return res.json({
       success: true,
-      message: "Sale deleted successfully.",
+      message:
+        "Payment received successfully.",
+      data: sale,
     });
   } catch (error: any) {
-    res.status(400).json({
+    return res.status(400).json({
       success: false,
-      message: error.message,
+      message:
+        error.message,
+    });
+  }
+}
+
+// =====================================================
+// DELETE
+// =====================================================
+
+export async function remove(
+  req: Request,
+  res: Response
+) {
+  try {
+    await deleteSale(
+      req.params.id as string
+    );
+
+    return res.json({
+      success: true,
+      message:
+        "Sale deleted successfully.",
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message:
+        error.message,
     });
   }
 }

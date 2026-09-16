@@ -7,6 +7,12 @@ import {
   deletePurchase,
 } from "../services/purchase.service";
 
+import {
+  createPurchaseReturn,
+  getPurchaseReturns,
+  getPurchaseReturn,
+} from "../services/purchaseReturn.service";
+
 // Create Purchase
 export async function create(req: Request, res: Response) {
   try {
@@ -77,6 +83,92 @@ export async function remove(req: Request, res: Response) {
     });
   } catch (error: any) {
     return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+// =====================================================
+// CREATE PURCHASE RETURN
+// =====================================================
+
+export async function createReturn(
+  req: Request,
+  res: Response
+) {
+  try {
+    const purchaseReturn =
+      await createPurchaseReturn(
+        req.body
+      );
+
+    return res.status(201).json({
+      success: true,
+      message:
+        "Purchase return created successfully.",
+      data: purchaseReturn,
+    });
+  } catch (error: any) {
+    return res.status(400).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+// =====================================================
+// GET ALL PURCHASE RETURNS
+// =====================================================
+
+export async function getAllReturns(
+  req: Request,
+  res: Response
+) {
+  try {
+    const purchaseReturns =
+      await getPurchaseReturns();
+
+    return res.json({
+      success: true,
+      data: purchaseReturns,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
+      success: false,
+      message: error.message,
+    });
+  }
+}
+
+// =====================================================
+// GET SINGLE PURCHASE RETURN
+// =====================================================
+
+export async function getOneReturn(
+  req: Request,
+  res: Response
+) {
+  try {
+    const purchaseReturn =
+      await getPurchaseReturn(
+        req.params.id as string
+      );
+
+    if (!purchaseReturn) {
+      return res.status(404).json({
+        success: false,
+        message:
+          "Purchase return not found.",
+      });
+    }
+
+    return res.json({
+      success: true,
+      data: purchaseReturn,
+    });
+  } catch (error: any) {
+    return res.status(500).json({
       success: false,
       message: error.message,
     });

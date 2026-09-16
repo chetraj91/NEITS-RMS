@@ -1,0 +1,5 @@
+-- AlterTable
+ALTER TABLE "Purchase" ADD COLUMN     "dueAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "paidAmount" DOUBLE PRECISION NOT NULL DEFAULT 0,
+ADD COLUMN     "paymentMethod" TEXT DEFAULT 'CASH',
+ADD COLUMN     "supplierInvoiceNumber" TEXT;

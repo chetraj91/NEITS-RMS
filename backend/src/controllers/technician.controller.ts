@@ -2,6 +2,9 @@ import { Request, Response } from "express";
 import * as technicianService from "../services/technician.service";
 
 export async function createTechnician(req: Request, res: Response) {
+  console.log("===== Technician Request =====");
+  console.log(req.body);
+
   try {
     const technician = await technicianService.createTechnician(req.body);
 
@@ -11,6 +14,9 @@ export async function createTechnician(req: Request, res: Response) {
       data: technician,
     });
   } catch (error: any) {
+    console.error("===== Technician Error =====");
+    console.error(error);
+
     res.status(400).json({
       success: false,
       message: error.message,
@@ -27,6 +33,8 @@ export async function getTechnicians(req: Request, res: Response) {
       data: technicians,
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -52,6 +60,8 @@ export async function getTechnician(req: Request, res: Response) {
       data: technician,
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(500).json({
       success: false,
       message: error.message,
@@ -72,6 +82,8 @@ export async function updateTechnician(req: Request, res: Response) {
       data: technician,
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(400).json({
       success: false,
       message: error.message,
@@ -88,6 +100,8 @@ export async function deleteTechnician(req: Request, res: Response) {
       message: "Technician deleted successfully.",
     });
   } catch (error: any) {
+    console.error(error);
+
     res.status(400).json({
       success: false,
       message: error.message,

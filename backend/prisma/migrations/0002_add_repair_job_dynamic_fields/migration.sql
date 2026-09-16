@@ -1,0 +1,2 @@
+-- This migration is intentionally empty.
+-- The changes represented by this migration are already included in 0001_baseline.
