@@ -33,3 +33,41 @@ frontend/node_modules/
 check*.ts
 debug_*.txt
 npx
+
+# Local database backups and exported data
+backend/backups/
+backend/*.backup
+backend/*.xlsx
+backend/*.sql
+
+# Local investigation / temporary backend files
+backend/check-*.js
+backend/check-*.ts
+backend/create-admin.ts
+backend/fix-migration-checksum.js
+backend/resetAdmin.ts
+backend/testLogin.ts
+backend/7.9.1
+backend/npx
+backend/{}
+
+# Old schema / SQL scratch files
+backend/prisma/*.before-*
+backend/prisma/create-feedback-setting.sql
+backend/sms_schema*.sql
+
+# Temporary frontend copies
+frontend/src/pages/*.backup*
+frontend/src/pages/*.bak
+frontend/src/pages/*.broken-*
+
+# Local deployment artifacts
+backend-deploy/
+neits-backend-deploy*.zip
+
+# Project investigation / generated notes
+project-tree*.txt
+repairJob-*.txt
+index.txt
+powershell
+cls

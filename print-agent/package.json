@@ -1,0 +1,14 @@
+{
+  "name": "print-agent",
+  "version": "1.0.0",
+  "description": "NEITS RMS Local Print Agent",
+  "main": "server.ts",
+  "scripts": {
+    "dev": "tsx server.ts",
+    "start": "tsx server.ts"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "commonjs"
+}
