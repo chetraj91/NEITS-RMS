@@ -76,6 +76,18 @@ export default function ReceivingPrinterSettingPage() {
           ? printersRes.data
           : [];
 
+      console.log(
+        "PRINT AGENT DATA:",
+        printersRes
+      );
+
+      console.log(
+        "PRINTER LIST:",
+        printerList,
+        "COUNT:",
+        printerList.length
+      );
+
       setPrinters(
         printerList
       );
