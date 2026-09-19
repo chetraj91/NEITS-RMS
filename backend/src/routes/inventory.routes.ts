@@ -32,7 +32,12 @@ router.get("/", getAll);
 router.get("/:id", getOne);
 
 // Update Item
-router.put("/:id", update);
+
+router.put(
+  "/:id",
+  requirePermission("inventory.edit"),
+  update
+);
 
 // Delete Item
 router.delete("/:id", remove);

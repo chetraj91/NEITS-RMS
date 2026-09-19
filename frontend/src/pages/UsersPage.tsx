@@ -55,11 +55,16 @@ const PERMISSIONS: Permission[] = [
     label: "Repair Board",
     group: "Main",
   },
-  {
-    key: "inventory",
-    label: "Inventory",
-    group: "Main",
-  },
+ {
+  key: "inventory",
+  label: "Inventory",
+  group: "Main",
+},
+{
+  key: "inventory.edit",
+  label: "Edit Inventory",
+  group: "Main",
+},
   {
     key: "suppliers",
     label: "Suppliers",

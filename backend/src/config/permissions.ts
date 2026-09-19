@@ -39,11 +39,17 @@ export const PERMISSIONS: PermissionDefinition[] = [
     group: "Main",
   },
 
-  {
-    key: "inventory",
-    label: "Inventory",
-    group: "Main",
-  },
+{
+  key: "inventory",
+  label: "Inventory",
+  group: "Main",
+},
+
+{
+  key: "inventory.edit",
+  label: "Edit Inventory",
+  group: "Main",
+},
 
   {
     key: "suppliers",
