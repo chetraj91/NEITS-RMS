@@ -1,5 +1,7 @@
 import {
   useEffect,
+  useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -7,66 +9,640 @@ import {
   useNavigate,
 } from "react-router-dom";
 
-import {
-  getDashboard,
-} from "../api/dashboard";
-
 import NepaliDate from "nepali-date-converter";
 
 import Footer from "../components/Footer";
 
 import {
+  getRepairJobs,
+} from "../api/repairJob";
+
+import {
   hasAnyPermission,
+  hasPermission,
 } from "../utils/permissions";
 
-export default function DashboardPage() {
-  const navigate = useNavigate();
+type CardPeriod =
+  | "ALL"
+  | "TODAY"
+  | "THIS_WEEK"
+  | "THIS_MONTH";
 
-  const [dashboard, setDashboard] =
-    useState<any>(null);
+type DashboardStatus =
+  | "RECEIVED"
+  | "WORKING"
+  | "WAITING_APPROVAL"
+  | "READY"
+  | "DELIVERED"
+  | "NOT_REPAIRABLE";
 
-  const [dashboardError, setDashboardError] =
-    useState("");
+type JobDateRange = {
+  start: Date | null;
+  end: Date | null;
+};
 
- const user = JSON.parse(
-  sessionStorage.getItem("user") || "{}"
-);
+const NEPAL_TIME_ZONE =
+  "Asia/Kathmandu";
 
-  // =====================================================
-  // HELPERS
-  // =====================================================
+const NEPAL_OFFSET =
+  "+05:45";
 
-  function safeNumber(value: any): number {
-    const number = Number(value);
+const STATUS_CARDS: {
+  key: DashboardStatus;
+  title: string;
+  icon: string;
+  bg: string;
+  iconBg: string;
+  text: string;
+}[] = [
+  {
+    key: "RECEIVED",
+    title: "Job Received",
+    icon: "📥",
+    bg: "bg-blue-50",
+    iconBg: "bg-blue-100",
+    text: "text-blue-700",
+  },
+  {
+    key: "WORKING",
+    title: "Diagnosis / Work in Progress",
+    icon: "🔧",
+    bg: "bg-purple-50",
+    iconBg: "bg-purple-100",
+    text: "text-purple-700",
+  },
+  {
+    key: "WAITING_APPROVAL",
+    title: "Waiting Approval",
+    icon: "⏳",
+    bg: "bg-orange-50",
+    iconBg: "bg-orange-100",
+    text: "text-orange-700",
+  },
+  {
+    key: "READY",
+    title: "Ready for Delivery",
+    icon: "📦",
+    bg: "bg-emerald-50",
+    iconBg: "bg-emerald-100",
+    text: "text-emerald-700",
+  },
+  {
+    key: "DELIVERED",
+    title: "Delivered",
+    icon: "✅",
+    bg: "bg-slate-50",
+    iconBg: "bg-slate-200",
+    text: "text-slate-700",
+  },
+  {
+    key: "NOT_REPAIRABLE",
+    title: "Not Repairable",
+    icon: "⚠️",
+    bg: "bg-red-50",
+    iconBg: "bg-red-100",
+    text: "text-red-700",
+  },
+];
 
-    return Number.isFinite(number)
-      ? number
-      : 0;
+function addDays(
+  date: Date,
+  days: number
+): Date {
+  return new Date(
+    date.getTime() +
+      days * 24 * 60 * 60 * 1000
+  );
+}
+
+function getNepalDateParts() {
+  const parts =
+    new Intl.DateTimeFormat(
+      "en-US",
+      {
+        timeZone:
+          NEPAL_TIME_ZONE,
+        year: "numeric",
+        month: "2-digit",
+        day: "2-digit",
+        weekday: "short",
+      }
+    ).formatToParts(new Date());
+
+  const values: Record<
+    string,
+    string
+  > = {};
+
+  parts.forEach(
+    (part) => {
+      values[part.type] =
+        part.value;
+    }
+  );
+
+  return {
+    year: Number(values.year),
+    month: Number(values.month),
+    day: Number(values.day),
+    weekday:
+      values.weekday,
+  };
+}
+
+function nepalMidnight(
+  year: number,
+  month: number,
+  day: number
+): Date {
+  const monthText =
+    String(month).padStart(
+      2,
+      "0"
+    );
+
+  const dayText =
+    String(day).padStart(
+      2,
+      "0"
+    );
+
+  return new Date(
+    `${year}-${monthText}-${dayText}T00:00:00${NEPAL_OFFSET}`
+  );
+}
+
+function getPeriodRange(
+  period: CardPeriod
+): JobDateRange | null {
+  if (period === "ALL") {
+    return null;
   }
 
-  function formatCurrency(value: any): string {
-    return safeNumber(value).toLocaleString(
-      "en-IN"
+  const {
+    year,
+    month,
+    day,
+    weekday,
+  } = getNepalDateParts();
+
+  const todayStart =
+    nepalMidnight(
+      year,
+      month,
+      day
+    );
+
+  if (period === "TODAY") {
+    return {
+      start: todayStart,
+      end: addDays(
+        todayStart,
+        1
+      ),
+    };
+  }
+
+  const weekdayMap: Record<
+    string,
+    number
+  > = {
+    Sun: 0,
+    Mon: 1,
+    Tue: 2,
+    Wed: 3,
+    Thu: 4,
+    Fri: 5,
+    Sat: 6,
+  };
+
+  if (period === "THIS_WEEK") {
+    const currentWeekday =
+  weekdayMap[weekday] ??
+  0;
+
+const sundayOffset =
+  -currentWeekday;
+
+const weekStart =
+  addDays(
+    todayStart,
+    sundayOffset
+  );
+
+    return {
+      start: weekStart,
+      end: addDays(
+        weekStart,
+        7
+      ),
+    };
+  }
+
+  const nextMonth =
+    month === 12
+      ? 1
+      : month + 1;
+
+  const nextMonthYear =
+    month === 12
+      ? year + 1
+      : year;
+
+  const monthStart =
+    nepalMidnight(
+      year,
+      month,
+      1
+    );
+
+  const nextMonthStart =
+    nepalMidnight(
+      nextMonthYear,
+      nextMonth,
+      1
+    );
+
+  return {
+    start: monthStart,
+    end: nextMonthStart,
+  };
+}
+
+function parseInputStart(
+  value: string
+): Date | null {
+  if (!value) {
+    return null;
+  }
+
+  const date =
+    new Date(
+      `${value}T00:00:00${NEPAL_OFFSET}`
+    );
+
+  return Number.isNaN(
+    date.getTime()
+  )
+    ? null
+    : date;
+}
+
+function getCustomDateRange(
+  fromDate: string,
+  toDate: string
+): JobDateRange | null {
+  if (
+    !fromDate &&
+    !toDate
+  ) {
+    return null;
+  }
+
+  const start =
+    parseInputStart(
+      fromDate
+    );
+
+  const endStart =
+    parseInputStart(
+      toDate
+    );
+
+  return {
+    start,
+    end: endStart
+      ? addDays(
+          endStart,
+          1
+        )
+      : null,
+  };
+}
+
+function matchesDashboardStatus(
+  job: any,
+  status: DashboardStatus
+): boolean {
+  const jobStatus =
+    job?.status;
+
+  if (
+    status === "RECEIVED"
+  ) {
+    return true;
+  }
+
+  if (
+    status === "WORKING"
+  ) {
+    return (
+      jobStatus ===
+        "DIAGNOSIS" ||
+      jobStatus ===
+        "IN_PROGRESS"
     );
   }
 
-  function formatDate(value: any): string {
-    if (!value) {
-      return "-";
-    }
+  return (
+    jobStatus ===
+    status
+  );
+}
 
-    const date = new Date(value);
+function getStatusLabel(
+  status: string
+): string {
+  switch (status) {
+    case "RECEIVED":
+      return "Job Received";
 
-    if (Number.isNaN(date.getTime())) {
-      return "-";
-    }
+    case "DIAGNOSIS":
+      return "Diagnosis";
 
-    return date.toLocaleDateString();
+    case "IN_PROGRESS":
+      return "Work in Progress";
+
+    case "WAITING_APPROVAL":
+      return "Waiting Approval";
+
+    case "WAITING_PARTS":
+      return "Waiting Parts";
+
+    case "READY":
+      return "Ready for Delivery";
+
+    case "DELIVERED":
+      return "Delivered";
+
+    case "NOT_REPAIRABLE":
+      return "Not Repairable";
+
+    case "CANCELLED":
+      return "Cancelled";
+
+    default:
+      return status || "-";
+  }
+}
+
+function getStatusColor(
+  status: string
+): string {
+  switch (status) {
+    case "RECEIVED":
+      return "bg-blue-100 text-blue-700";
+
+    case "DIAGNOSIS":
+      return "bg-yellow-100 text-yellow-700";
+
+    case "IN_PROGRESS":
+      return "bg-purple-100 text-purple-700";
+
+    case "WAITING_APPROVAL":
+      return "bg-orange-100 text-orange-700";
+
+    case "WAITING_PARTS":
+      return "bg-orange-100 text-orange-700";
+
+    case "READY":
+      return "bg-green-100 text-green-700";
+
+    case "DELIVERED":
+      return "bg-gray-200 text-gray-700";
+
+    case "NOT_REPAIRABLE":
+      return "bg-red-100 text-red-700";
+
+    case "CANCELLED":
+      return "bg-red-100 text-red-700";
+
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+}
+
+function formatNepaliDateTime(
+  date:
+    | string
+    | null
+    | undefined
+): string {
+  if (!date) {
+    return "-";
   }
 
-  // =====================================================
-  // DATES
-  // =====================================================
+  try {
+    const jsDate =
+      new Date(date);
+
+    if (
+      Number.isNaN(
+        jsDate.getTime()
+      )
+    ) {
+      return "-";
+    }
+
+    const nepaliDate =
+      new NepaliDate(
+        jsDate
+      );
+
+    const bsDate =
+      nepaliDate.format(
+        "DD MMMM YYYY",
+        "en"
+      );
+
+    const time =
+      jsDate.toLocaleTimeString(
+        "en-US",
+        {
+          timeZone:
+            NEPAL_TIME_ZONE,
+          hour: "2-digit",
+          minute: "2-digit",
+          hour12: true,
+        }
+      );
+
+    return `${bsDate}, ${time}`;
+  } catch {
+    return "-";
+  }
+}
+function getDashboardCardDate(
+  job: any,
+  status: DashboardStatus
+): string | null {
+  if (
+    status === "RECEIVED"
+  ) {
+    return (
+      job?.receivedDate ||
+      job?.createdAt ||
+      null
+    );
+  }
+
+  if (
+    status === "DELIVERED"
+  ) {
+    return (
+      job?.deliveryDate ||
+      job?.updatedAt ||
+      null
+    );
+  }
+
+  return (
+    job?.updatedAt ||
+    job?.createdAt ||
+    null
+  );
+}
+function isDateInRange(
+  date:
+    | string
+    | null
+    | undefined,
+  range:
+    | JobDateRange
+    | null
+): boolean {
+
+  if (!range) {
+    return true;
+  }
+
+  if (!date) {
+    return false;
+  }
+
+  const time =
+    new Date(
+      date
+    ).getTime();
+
+  if (
+    Number.isNaN(time)
+  ) {
+    return false;
+  }
+
+  if (
+    range.start &&
+    time <
+      range.start.getTime()
+  ) {
+    return false;
+  }
+
+  if (
+    range.end &&
+    time >=
+      range.end.getTime()
+  ) {
+    return false;
+  }
+
+  return true;
+}
+
+function getInitialCardPeriods(): Record<
+  DashboardStatus,
+  CardPeriod
+> {
+  return {
+    RECEIVED: "ALL",
+    WORKING: "ALL",
+    WAITING_APPROVAL:
+      "ALL",
+    READY: "ALL",
+    DELIVERED: "ALL",
+    NOT_REPAIRABLE:
+      "ALL",
+  };
+}
+
+export default function DashboardPage() {
+  const navigate =
+    useNavigate();
+
+  const jobsSectionRef =
+    useRef<HTMLDivElement | null>(
+      null
+    );
+
+  const user = JSON.parse(
+    sessionStorage.getItem(
+      "user"
+    ) || "{}"
+  );
+
+  const [
+    jobs,
+    setJobs,
+  ] = useState<any[]>([]);
+
+  const [
+    loading,
+    setLoading,
+  ] = useState(true);
+
+  const [
+    dashboardError,
+    setDashboardError,
+  ] = useState("");
+
+  const [
+    selectedStatus,
+    setSelectedStatus,
+  ] =
+    useState<DashboardStatus | null>(
+      null
+    );
+
+  const [
+    cardPeriods,
+    setCardPeriods,
+  ] = useState<
+    Record<
+      DashboardStatus,
+      CardPeriod
+    >
+  >(
+    getInitialCardPeriods
+  );
+
+  const [
+    customerSearch,
+    setCustomerSearch,
+  ] = useState("");
+
+  const [
+    contactSearch,
+    setContactSearch,
+  ] = useState("");
+
+  const [
+    fromDate,
+    setFromDate,
+  ] = useState("");
+
+  const [
+    toDate,
+    setToDate,
+  ] = useState("");
+
+  const [
+    quickDate,
+    setQuickDate,
+  ] =
+    useState<CardPeriod>(
+      "ALL"
+    );
 
   const englishDate =
     new Date().toLocaleDateString(
@@ -84,234 +660,370 @@ export default function DashboardPage() {
       "YYYY MMMM DD dddd"
     );
 
-  // =====================================================
-  // LOAD DASHBOARD
-  // =====================================================
-
   useEffect(() => {
-    loadDashboard();
+    loadJobs();
   }, []);
 
-  async function loadDashboard() {
+  async function loadJobs() {
     try {
+      setLoading(true);
       setDashboardError("");
 
-      const res = await getDashboard();
+      const res =
+        await getRepairJobs();
 
       const data =
-        res.data?.data ??
-        res.data ??
-        {};
+        res?.data?.data ??
+        res?.data ??
+        [];
 
-      setDashboard(data);
-    } catch (error: any) {
+      const repairJobs =
+        Array.isArray(data)
+          ? [...data]
+          : [];
+
+      repairJobs.sort(
+        (
+          a: any,
+          b: any
+        ) => {
+          const aTime =
+            new Date(
+              a?.receivedDate ||
+                a?.createdAt ||
+                0
+            ).getTime();
+
+          const bTime =
+            new Date(
+              b?.receivedDate ||
+                b?.createdAt ||
+                0
+            ).getTime();
+
+          return bTime - aTime;
+        }
+      );
+
+      setJobs(
+        repairJobs
+      );
+    } catch (
+      error: any
+    ) {
       console.error(
-        "Failed to load dashboard:",
+        "Failed to load repair jobs:",
         error
       );
+
+      setJobs([]);
 
       setDashboardError(
         error?.response?.data?.message ||
           error?.message ||
-          "Failed to load dashboard."
+          "Failed to load repair jobs."
       );
+    } finally {
+      setLoading(false);
     }
   }
 
-  // =====================================================
-  // LOADING
-  // =====================================================
+  function handleCardClick(
+    status: DashboardStatus
+  ) {
+    setSelectedStatus(
+      status
+    );
 
-  if (!dashboard && !dashboardError) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center">
-        <div className="text-gray-500 font-semibold">
-          Loading Dashboard...
-        </div>
-      </div>
+    window.setTimeout(
+      () => {
+        jobsSectionRef.current?.scrollIntoView(
+          {
+            behavior: "smooth",
+            block: "start",
+          }
+        );
+      },
+      0
     );
   }
 
-  // =====================================================
-  // ERROR
-  // =====================================================
+ function handleCardPeriodChange(
+  status: DashboardStatus,
+  period: CardPeriod
+) {
+  setCardPeriods(
+    (
+      current
+    ) => ({
+      ...current,
+      [status]:
+        period,
+    })
+  );
 
-  if (dashboardError) {
-    return (
-      <div className="min-h-screen bg-slate-100 flex items-center justify-center p-6">
-        <div className="bg-white rounded-2xl shadow-xl p-8 max-w-lg w-full text-center">
+  setSelectedStatus(
+    status
+  );
 
-          <div className="text-5xl mb-4">
-            ⚠️
-          </div>
+  window.setTimeout(
+    () => {
+      jobsSectionRef.current?.scrollIntoView(
+        {
+          behavior: "smooth",
+          block: "start",
+        }
+      );
+    },
+    0
+  );
+}
 
-          <h1 className="text-2xl font-bold text-red-600 mb-3">
-            Unable to Load Dashboard
-          </h1>
+  function clearAllFilters() {
+    setSelectedStatus(
+      null
+    );
 
-          <p className="text-gray-600 mb-6">
-            {dashboardError}
-          </p>
+    setCustomerSearch(
+      ""
+    );
 
-          <button
-            type="button"
-            onClick={loadDashboard}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-xl font-semibold"
-          >
-            Try Again
-          </button>
+    setContactSearch(
+      ""
+    );
 
-        </div>
-      </div>
+    setFromDate("");
+
+    setToDate("");
+
+    setQuickDate(
+      "ALL"
     );
   }
 
-  // =====================================================
-  // SAFE ARRAYS
-  // =====================================================
+  const cardCounts =
+    useMemo(() => {
+      const counts: Record<
+        DashboardStatus,
+        number
+      > = {
+        RECEIVED: 0,
+        WORKING: 0,
+        WAITING_APPROVAL: 0,
+        READY: 0,
+        DELIVERED: 0,
+        NOT_REPAIRABLE: 0,
+      };
 
-  const recentJobs = Array.isArray(
-    dashboard?.recentJobs
-  )
-    ? dashboard.recentJobs
-    : [];
+      STATUS_CARDS.forEach(
+        (card) => {
+          const range =
+            getPeriodRange(
+              cardPeriods[
+                card.key
+              ]
+            );
 
-  const recentPayments = Array.isArray(
-    dashboard?.recentPayments
-  )
-    ? dashboard.recentPayments
-    : [];
+          counts[
+            card.key
+          ] =
+            jobs.filter(
+              (job) =>
+                matchesDashboardStatus(
+                  job,
+                  card.key
+                ) &&
+                isDateInRange(
+                getDashboardCardDate(
+                job,
+               card.key
+               ),
+                range
+                )
+            ).length;
+        }
+      );
 
-  // =====================================================
-  // KPI CARDS
-  // =====================================================
+      return counts;
+    }, [
+      jobs,
+      cardPeriods,
+    ]);
 
-  const cards = [
-    {
-      title: "Today's Collection",
-      value: `Rs. ${formatCurrency(
-        dashboard?.todayCollection
-      )}`,
-      icon: "💰",
-      bg: "bg-emerald-50",
-      iconBg: "bg-emerald-100",
-      text: "text-emerald-700",
-    },
+  const filteredJobs =
+    useMemo(() => {
+      let result =
+        jobs;
 
-    {
-      title: "Today's Expense",
-      value: `Rs. ${formatCurrency(
-        dashboard?.todayExpense
-      )}`,
-      icon: "💸",
-      bg: "bg-red-50",
-      iconBg: "bg-red-100",
-      text: "text-red-700",
-    },
+      if (
+        selectedStatus
+      ) {
+        result =
+          result.filter(
+            (job) =>
+              matchesDashboardStatus(
+                job,
+                selectedStatus
+              )
+          );
+      }
 
-    {
-      title: "Today's Profit",
-      value: `Rs. ${formatCurrency(
-        dashboard?.todayProfit
-      )}`,
-      icon: "📈",
-      bg: "bg-blue-50",
-      iconBg: "bg-blue-100",
-      text: "text-blue-700",
-    },
+      const customer =
+        customerSearch
+          .trim()
+          .toLowerCase();
 
-    {
-      title: "Pending Payment",
-      value: `Rs. ${formatCurrency(
-        dashboard?.pendingPayment
-      )}`,
-      icon: "⏳",
-      bg: "bg-orange-50",
-      iconBg: "bg-orange-100",
-      text: "text-orange-700",
-    },
+      if (customer) {
+        result =
+          result.filter(
+            (job) =>
+              String(
+                job?.customer
+                  ?.fullName ||
+                  ""
+              )
+                .toLowerCase()
+                .includes(
+                  customer
+                )
+          );
+      }
 
-    {
-      title: "Open Repairs",
-      value: safeNumber(
-        dashboard?.openRepair
-      ),
-      icon: "🔧",
-      bg: "bg-indigo-50",
-      iconBg: "bg-indigo-100",
-      text: "text-indigo-700",
-    },
+      const contact =
+        contactSearch
+          .trim()
+          .toLowerCase();
 
-    {
-      title: "Ready Delivery",
-      value: safeNumber(
-        dashboard?.readyRepair
-      ),
-      icon: "📦",
-      bg: "bg-cyan-50",
-      iconBg: "bg-cyan-100",
-      text: "text-cyan-700",
-    },
+      if (contact) {
+        result =
+          result.filter(
+            (job) => {
+              const phone =
+                String(
+                  job?.customer
+                    ?.phone ||
+                    ""
+                ).toLowerCase();
 
-    {
-      title: "Pending Estimate",
-      value: safeNumber(
-        dashboard?.estimatePending
-      ),
-      icon: "📝",
-      bg: "bg-yellow-50",
-      iconBg: "bg-yellow-100",
-      text: "text-yellow-700",
-    },
+              const alternatePhone =
+                String(
+                  job?.customer
+                    ?.alternatePhone ||
+                    ""
+                ).toLowerCase();
 
-    {
-      title: "Low Stock",
-      value: safeNumber(
-        dashboard?.lowStock
-      ),
-      icon: "⚠️",
-      bg: "bg-rose-50",
-      iconBg: "bg-rose-100",
-      text: "text-rose-700",
-    },
-  ];
+              return (
+                phone.includes(
+                  contact
+                ) ||
+                alternatePhone.includes(
+                  contact
+                )
+              );
+            }
+          );
+      }
+
+           let dateRange:
+        | JobDateRange
+        | null =
+        null;
+
+      if (selectedStatus) {
+        const selectedCardPeriod =
+          cardPeriods[
+            selectedStatus
+          ];
+
+        if (
+          selectedCardPeriod !==
+          "ALL"
+        ) {
+          dateRange =
+            getPeriodRange(
+              selectedCardPeriod
+            );
+        } else {
+          dateRange =
+            getCustomDateRange(
+              fromDate,
+              toDate
+            );
+        }
+      } else if (
+        quickDate !==
+        "ALL"
+      ) {
+        dateRange =
+          getPeriodRange(
+            quickDate
+          );
+      } else {
+        dateRange =
+          getCustomDateRange(
+            fromDate,
+            toDate
+          );
+      }
+
+      if (dateRange) {
+  result =
+    result.filter(
+      (job) =>
+        isDateInRange(
+          getDashboardCardDate(
+            job,
+            selectedStatus ||
+              "RECEIVED"
+          ),
+          dateRange
+        )
+    );
+}
+
+      return result;
+    }, [
+            jobs,
+      selectedStatus,
+      cardPeriods,
+      customerSearch,
+      contactSearch,
+      fromDate,
+      toDate,
+      quickDate,
+    ]);
 
   return (
     <div className="min-h-screen bg-slate-100">
-
       <div className="p-4 md:p-6">
 
-        {/* =================================================
+        {/* =====================================================
             TOP HEADER
-        ================================================= */}
+        ===================================================== */}
 
         <div className="bg-white rounded-2xl shadow-sm border p-5 mb-6">
 
-          <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-5">
+          <div className="flex flex-col xl:flex-row xl:items-center xl:justify-between gap-5">
 
-            <div>
+            <div className="flex items-center gap-3">
 
-              <div className="flex items-center gap-3">
+              <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow">
+                N
+              </div>
 
-                <div className="w-11 h-11 rounded-xl bg-blue-600 text-white flex items-center justify-center text-xl font-bold shadow">
-                  N
-                </div>
+              <div>
+                <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">
+                  NEITS RMS
+                </h1>
 
-                <div>
-                  <h1 className="text-2xl md:text-3xl font-extrabold text-slate-800">
-                    NEITS RMS
-                  </h1>
-
-                  <p className="text-sm text-gray-500">
-                    Nepal Electronics & IT Solution
-                  </p>
-                </div>
-
+                <p className="text-sm text-gray-500">
+                  Nepal Electronics & IT Solution
+                </p>
               </div>
 
             </div>
 
-            <div className="flex flex-wrap gap-3">
+            <div className="flex flex-wrap items-center justify-end gap-3">
 
               <div className="bg-slate-50 border rounded-xl px-4 py-3">
                 <p className="text-xs text-gray-500">
@@ -339,7 +1051,8 @@ export default function DashboardPage() {
                 </p>
 
                 <p className="font-semibold text-slate-800 text-sm">
-                  {user?.fullName || "User"}
+                  {user?.fullName ||
+                    "User"}
                 </p>
 
                 <p className="text-xs text-blue-600">
@@ -347,95 +1060,37 @@ export default function DashboardPage() {
                 </p>
               </div>
 
-            </div>
-
-          </div>
-
-        </div>
-
-        {/* =================================================
-            WELCOME + QUICK ACTIONS
-        ================================================= */}
-
-        <div className="flex flex-col xl:flex-row gap-5 mb-6">
-
-          <div className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-2xl p-6 shadow-lg flex-1">
-
-            <p className="text-blue-100 text-sm mb-1">
-              Welcome back
-            </p>
-
-            <h2 className="text-2xl font-bold">
-              {user?.fullName || "User"}
-            </h2>
-
-            <p className="text-blue-100 mt-2">
-              Manage repairs, inventory, sales and accounts from one place.
-            </p>
-
-          </div>
-
-          <div className="bg-white rounded-2xl shadow-sm border p-4 xl:w-[520px]">
-
-            <p className="text-sm font-semibold text-gray-500 mb-3">
-              Quick Actions
-            </p>
-
-            <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/repair-jobs/new")
-                }
-                className="bg-blue-50 hover:bg-blue-100 text-blue-700 rounded-xl p-3 text-sm font-semibold transition"
-              >
-                🔧 New Repair
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/sales")
-                }
-                className="bg-emerald-50 hover:bg-emerald-100 text-emerald-700 rounded-xl p-3 text-sm font-semibold transition"
-              >
-                🧾 New Sale
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/inventory/add")
-                }
-                className="bg-orange-50 hover:bg-orange-100 text-orange-700 rounded-xl p-3 text-sm font-semibold transition"
-              >
-                📦 Add Stock
-              </button>
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/accounts/expenses")
-                }
-                className="bg-red-50 hover:bg-red-100 text-red-700 rounded-xl p-3 text-sm font-semibold transition"
-              >
-                💸 Expense
-              </button>
+              {hasPermission(
+                "repair-jobs"
+              ) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      "/repair-jobs/new"
+                    )
+                  }
+                  className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl shadow font-semibold whitespace-nowrap transition"
+                >
+                  + New Repair Job
+                </button>
+              )}
 
               {hasAnyPermission([
-             "messages.send-custom",
-             "messages.bulk-send",
-             ]) && (
-             <button
-             type="button"
-             onClick={() =>
-             navigate("/custom-sms")
-             }
-             className="bg-purple-50 hover:bg-purple-100 text-purple-700 rounded-xl p-3 text-sm font-semibold transition"
-             >
-              📱 Custom SMS
-            </button>
+                "messages.send-custom",
+                "messages.bulk-send",
+              ]) && (
+                <button
+                  type="button"
+                  onClick={() =>
+                    navigate(
+                      "/custom-sms"
+                    )
+                  }
+                  className="bg-purple-600 hover:bg-purple-700 text-white px-5 py-3 rounded-xl shadow font-semibold whitespace-nowrap transition"
+                >
+                  📱 Custom SMS
+                </button>
               )}
 
             </div>
@@ -444,79 +1099,364 @@ export default function DashboardPage() {
 
         </div>
 
-        {/* =================================================
-            KPI CARDS
-        ================================================= */}
+        {/* =====================================================
+            STATUS CARDS
+        ===================================================== */}
 
-        <div className="grid grid-cols-2 md:grid-cols-4 xl:grid-cols-8 gap-3 mb-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 xl:grid-cols-6 gap-4 mb-6">
 
-          {cards.map(
-            (card, index) => (
-              <div
-                key={index}
-                className={`${card.bg} rounded-2xl border p-4 shadow-sm`}
-              >
+          {STATUS_CARDS.map(
+            (card) => {
+              const selected =
+                selectedStatus ===
+                card.key;
 
-                <div className="flex items-center justify-between mb-3">
+              return (
+                <div
+                  key={card.key}
+                  onClick={() =>
+                    handleCardClick(
+                      card.key
+                    )
+                  }
+                  className={`${card.bg} rounded-2xl border p-4 shadow-sm cursor-pointer transition ${
+                    selected
+                      ? "ring-2 ring-blue-500 border-blue-400"
+                      : "hover:shadow-md"
+                  }`}
+                >
 
-                  <div
-                    className={`w-9 h-9 rounded-xl ${card.iconBg} flex items-center justify-center text-lg`}
-                  >
-                    {card.icon}
+                  <div className="flex items-start justify-between gap-2">
+
+                    <div
+                      className={`w-10 h-10 rounded-xl ${card.iconBg} flex items-center justify-center text-lg`}
+                    >
+                      {card.icon}
+                    </div>
+
+                    <select
+                      value={
+                        cardPeriods[
+                          card.key
+                        ]
+                      }
+                      onClick={(event) =>
+                        event.stopPropagation()
+                      }
+                      onChange={(
+                        event
+                      ) =>
+                        handleCardPeriodChange(
+                          card.key,
+                          event
+                            .target
+                            .value as CardPeriod
+                        )
+                      }
+                      className="bg-white/80 border rounded-lg text-xs font-semibold px-2 py-1 outline-none cursor-pointer"
+                      aria-label={`${card.title} period`}
+                    >
+                      <option value="ALL">
+                        All
+                      </option>
+                      <option value="TODAY">
+                        Today
+                      </option>
+                      <option value="THIS_WEEK">
+                        This Week
+                      </option>
+                      <option value="THIS_MONTH">
+                        This Month
+                      </option>
+                    </select>
+
                   </div>
 
+                  <p
+                    className={`text-sm font-semibold mt-4 ${card.text}`}
+                  >
+                    {card.title}
+                  </p>
+
+                  <p className="text-3xl font-extrabold text-slate-800 mt-1">
+                    {
+                      cardCounts[
+                        card.key
+                      ]
+                    }
+                  </p>
+
                 </div>
-
-                <p className="text-xs text-gray-500">
-                  {card.title}
-                </p>
-
-                <p
-                  className={`text-lg font-bold mt-1 ${card.text}`}
-                >
-                  {card.value}
-                </p>
-
-              </div>
-            )
+              );
+            }
           )}
 
         </div>
 
-        {/* =================================================
-            RECENT REPAIRS + REPAIR OVERVIEW
-        ================================================= */}
+        {/* =====================================================
+            FILTERS
+        ===================================================== */}
 
-        <div className="grid grid-cols-1 xl:grid-cols-3 gap-6">
+        <div className="bg-white rounded-2xl shadow-sm border p-5 mb-6">
 
-          {/* RECENT REPAIRS */}
+          <div className="flex flex-col lg:flex-row lg:items-end lg:justify-between gap-4">
 
-          <div className="xl:col-span-2 bg-white rounded-2xl shadow-sm border overflow-hidden">
-
-            <div className="p-5 border-b flex justify-between items-center">
+            <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-4 flex-1">
 
               <div>
-                <h3 className="text-lg font-bold text-slate-800">
-                  Recent Repair Jobs
-                </h3>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">
+                  Customer
+                </label>
 
-                <p className="text-xs text-gray-500 mt-1">
-                  Latest repair activity
-                </p>
+                <input
+                  type="text"
+                  value={
+                    customerSearch
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setCustomerSearch(
+                      event
+                        .target
+                        .value
+                    )
+                  }
+                  placeholder="Search customer name"
+                  className="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                />
               </div>
 
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/repair-board")
-                }
-                className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
-              >
-                View All →
-              </button>
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">
+                  Contact Number
+                </label>
+
+                <input
+                  type="text"
+                  value={
+                    contactSearch
+                  }
+                  onChange={(
+                    event
+                  ) =>
+                    setContactSearch(
+                      event
+                        .target
+                        .value
+                    )
+                  }
+                  placeholder="Search contact number"
+                  className="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">
+                  From Date
+                </label>
+
+                <input
+                  type="date"
+                  value={
+                    fromDate
+                  }
+                  onChange={(
+                    event
+                  ) => {
+                    setFromDate(
+                      event
+                        .target
+                        .value
+                    );
+
+                    setQuickDate(
+                      "ALL"
+                    );
+                  }}
+                  className="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-semibold text-gray-600 mb-1">
+                  To Date
+                </label>
+
+                <input
+                  type="date"
+                  value={
+                    toDate
+                  }
+                  onChange={(
+                    event
+                  ) => {
+                    setToDate(
+                      event
+                        .target
+                        .value
+                    );
+
+                    setQuickDate(
+                      "ALL"
+                    );
+                  }}
+                  className="w-full border rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-blue-500"
+                />
+              </div>
 
             </div>
 
+            <button
+              type="button"
+              onClick={
+                clearAllFilters
+              }
+              className="border border-gray-300 hover:bg-gray-100 text-gray-700 px-5 py-3 rounded-xl font-semibold whitespace-nowrap"
+            >
+              Clear Filters
+            </button>
+
+          </div>
+
+          <div className="flex flex-wrap items-center gap-2 mt-4">
+
+            <span className="text-sm font-semibold text-gray-600 mr-2">
+              Quick Date:
+            </span>
+
+            {(
+              [
+                "ALL",
+                "TODAY",
+                "THIS_WEEK",
+                "THIS_MONTH",
+              ] as CardPeriod[]
+            ).map(
+              (period) => (
+                <button
+                  key={period}
+                  type="button"
+                  onClick={() =>
+                    setQuickDate(
+                      period
+                    )
+                  }
+                  className={`px-4 py-2 rounded-lg text-sm font-semibold transition ${
+                    quickDate ===
+                    period
+                      ? "bg-blue-600 text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }`}
+                >
+                  {period ===
+                    "ALL" &&
+                    "All"}
+
+                  {period ===
+                    "TODAY" &&
+                    "Today"}
+
+                  {period ===
+                    "THIS_WEEK" &&
+                    "This Week"}
+
+                  {period ===
+                    "THIS_MONTH" &&
+                    "This Month"}
+                </button>
+              )
+            )}
+
+          </div>
+
+        </div>
+
+        {/* =====================================================
+            JOB LIST
+        ===================================================== */}
+
+        <div
+          ref={
+            jobsSectionRef
+          }
+          className="bg-white rounded-2xl shadow-sm border overflow-hidden"
+        >
+
+          <div className="p-5 border-b flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+
+            <div>
+              <h2 className="text-xl font-bold text-slate-800">
+                Repair Jobs (
+                {
+                  filteredJobs.length
+                }
+                )
+              </h2>
+
+              <p className="text-sm text-gray-500 mt-1">
+                Showing{" "}
+                {
+                  filteredJobs.length
+                }{" "}
+                of{" "}
+                {
+                  jobs.length
+                }{" "}
+                jobs
+                {selectedStatus
+                  ? ` • ${STATUS_CARDS.find(
+                      (card) =>
+                        card.key ===
+                        selectedStatus
+                    )?.title || ""}`
+                  : ""}
+              </p>
+            </div>
+
+            {selectedStatus && (
+              <button
+                type="button"
+                onClick={() =>
+                  setSelectedStatus(
+                    null
+                  )
+                }
+                className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
+              >
+                Clear Status Filter
+              </button>
+            )}
+
+          </div>
+
+          {loading ? (
+            <div className="text-center py-12 text-gray-500 font-semibold">
+              Loading Repair Jobs...
+            </div>
+          ) : dashboardError ? (
+            <div className="text-center py-12 px-6">
+
+              <div className="text-4xl mb-3">
+                ⚠️
+              </div>
+
+              <p className="text-red-600 font-semibold mb-4">
+                {dashboardError}
+              </p>
+
+              <button
+                type="button"
+                onClick={
+                  loadJobs
+                }
+                className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-3 rounded-xl font-semibold"
+              >
+                Try Again
+              </button>
+
+            </div>
+          ) : (
             <div className="overflow-x-auto">
 
               <table className="w-full text-sm">
@@ -525,71 +1465,116 @@ export default function DashboardPage() {
 
                   <tr>
 
-                    <th className="px-5 py-3 text-left">
-                      Job No.
+                    <th className="px-5 py-3 text-left whitespace-nowrap">
+                      Job No
                     </th>
 
-                    <th className="px-5 py-3 text-left">
+                    <th className="px-5 py-3 text-left whitespace-nowrap">
                       Customer
                     </th>
 
-                    <th className="px-5 py-3 text-left">
+                    <th className="px-5 py-3 text-left whitespace-nowrap">
+                      Contact
+                    </th>
+
+                    <th className="px-5 py-3 text-left whitespace-nowrap">
                       Device
                     </th>
 
-                    <th className="px-5 py-3 text-left">
+                    <th className="px-5 py-3 text-left whitespace-nowrap">
+                      Brand / Model
+                    </th>
+
+                    <th className="px-5 py-3 text-center whitespace-nowrap">
                       Status
                     </th>
 
+                    <th className="px-5 py-3 text-center whitespace-nowrap">
+                      Received
+                    </th>
+
                   </tr>
 
                 </thead>
 
                 <tbody>
 
-                  {recentJobs.length === 0 ? (
+                  {filteredJobs.length ===
+                  0 ? (
                     <tr>
                       <td
-                        colSpan={4}
-                        className="px-5 py-10 text-center text-gray-500"
+                        colSpan={7}
+                        className="text-center p-12 text-gray-500"
                       >
-                        No recent repair jobs
+                        No repair jobs found for the selected filters.
                       </td>
                     </tr>
                   ) : (
-                    recentJobs.map(
+                    filteredJobs.map(
                       (
-                        job: any,
-                        index: number
+                        job,
+                        index
                       ) => (
                         <tr
                           key={
-                            job?.jobNumber ||
                             job?.id ||
                             index
                           }
-                          className="border-t hover:bg-slate-50"
+                          onClick={() =>
+                            navigate(
+                              `/repair-jobs/${job.id}`
+                            )
+                          }
+                          className="border-t hover:bg-blue-50 cursor-pointer transition"
                         >
 
-                          <td className="px-5 py-3 font-semibold text-blue-700">
-                            {job?.jobNumber || "-"}
-                          </td>
-
-                          <td className="px-5 py-3">
-                            {job?.customer?.fullName ||
-                              job?.customer?.name ||
+                          <td className="px-5 py-3 font-semibold text-blue-700 whitespace-nowrap">
+                            {job?.jobNumber ||
                               "-"}
                           </td>
 
-                          <td className="px-5 py-3">
-                            {job?.brand || ""}{" "}
-                            {job?.model || ""}
+                          <td className="px-5 py-3 whitespace-nowrap">
+                            {job?.customer
+                              ?.fullName ||
+                              "-"}
                           </td>
 
-                          <td className="px-5 py-3">
-                            <StatusBadge
-                              status={job?.status}
-                            />
+                          <td className="px-5 py-3 whitespace-nowrap">
+                            {job?.customer
+                              ?.phone ||
+                              "-"}
+                          </td>
+
+                          <td className="px-5 py-3 whitespace-nowrap">
+                            {job?.deviceType ||
+                              "-"}
+                          </td>
+
+                          <td className="px-5 py-3 whitespace-nowrap">
+                            {job?.brand ||
+                              "-"}{" "}
+                            {job?.model ||
+                              ""}
+                          </td>
+
+                          <td className="px-5 py-3 text-center whitespace-nowrap">
+
+                            <span
+                              className={`px-3 py-1 rounded-full text-xs font-semibold ${getStatusColor(
+                                job?.status
+                              )}`}
+                            >
+                              {getStatusLabel(
+                                job?.status
+                              )}
+                            </span>
+
+                          </td>
+
+                          <td className="px-5 py-3 text-center whitespace-nowrap">
+                            {formatNepaliDateTime(
+                              job?.receivedDate
+                            )}
                           </td>
 
                         </tr>
@@ -602,282 +1587,15 @@ export default function DashboardPage() {
               </table>
 
             </div>
-
-          </div>
-
-          {/* REPAIR OVERVIEW */}
-
-          <div className="bg-white rounded-2xl shadow-sm border p-5">
-
-            <h3 className="text-lg font-bold text-slate-800">
-              Repair Overview
-            </h3>
-
-            <p className="text-xs text-gray-500 mt-1 mb-5">
-              Current repair workload
-            </p>
-
-            <div className="space-y-3">
-
-              <OverviewRow
-                label="Open Repairs"
-                value={safeNumber(
-                  dashboard?.openRepair
-                )}
-                bg="bg-indigo-50"
-                text="text-indigo-700"
-              />
-
-              <OverviewRow
-                label="Ready Delivery"
-                value={safeNumber(
-                  dashboard?.readyRepair
-                )}
-                bg="bg-emerald-50"
-                text="text-emerald-700"
-              />
-
-              <OverviewRow
-                label="Pending Estimate"
-                value={safeNumber(
-                  dashboard?.estimatePending
-                )}
-                bg="bg-yellow-50"
-                text="text-yellow-700"
-              />
-
-              <OverviewRow
-                label="Low Stock"
-                value={safeNumber(
-                  dashboard?.lowStock
-                )}
-                bg="bg-red-50"
-                text="text-red-700"
-              />
-
-            </div>
-
-          </div>
+          )}
 
         </div>
-
-        {/* =================================================
-            RECENT PAYMENTS
-        ================================================= */}
 
         <div className="mt-6">
-
-          <div className="bg-white rounded-2xl shadow-sm border overflow-hidden">
-
-            <div className="p-5 border-b flex justify-between items-center">
-
-              <div>
-                <h3 className="text-lg font-bold text-slate-800">
-                  Recent Payments
-                </h3>
-
-                <p className="text-xs text-gray-500 mt-1">
-                  Recent customer collections
-                </p>
-              </div>
-
-              <button
-                type="button"
-                onClick={() =>
-                  navigate("/accounts/cash-book")
-                }
-                className="text-sm text-blue-600 hover:text-blue-800 font-semibold"
-              >
-                Cash Book →
-              </button>
-
-            </div>
-
-            <div className="overflow-x-auto">
-
-              <table className="w-full text-sm">
-
-                <thead className="bg-slate-50">
-
-                  <tr>
-
-                    <th className="px-5 py-3 text-left">
-                      Date
-                    </th>
-
-                    <th className="px-5 py-3 text-left">
-                      Description
-                    </th>
-
-                    <th className="px-5 py-3 text-left">
-                      Mode
-                    </th>
-
-                    <th className="px-5 py-3 text-right">
-                      Amount
-                    </th>
-
-                  </tr>
-
-                </thead>
-
-                <tbody>
-
-                  {recentPayments.length === 0 ? (
-                    <tr>
-                      <td
-                        colSpan={4}
-                        className="px-5 py-10 text-center text-gray-500"
-                      >
-                        No recent payments
-                      </td>
-                    </tr>
-                  ) : (
-                    recentPayments.map(
-                      (
-                        payment: any,
-                        index: number
-                      ) => (
-                        <tr
-                          key={
-                            payment?.id ||
-                            index
-                          }
-                          className="border-t hover:bg-slate-50"
-                        >
-
-                          <td className="px-5 py-3">
-                            {formatDate(
-                              payment?.date ||
-                                payment?.createdAt
-                            )}
-                          </td>
-
-                          <td className="px-5 py-3">
-                            {payment?.description ||
-                              payment?.particulars ||
-                              "-"}
-                          </td>
-
-                          <td className="px-5 py-3">
-                            {payment?.paymentMode ||
-                              payment?.method ||
-                              "-"}
-                          </td>
-
-                          <td className="px-5 py-3 text-right font-semibold text-emerald-600">
-                            Rs.{" "}
-                            {formatCurrency(
-                              payment?.amount
-                            )}
-                          </td>
-
-                        </tr>
-                      )
-                    )
-                  )}
-
-                </tbody>
-
-              </table>
-
-            </div>
-
-          </div>
-
+          <Footer />
         </div>
 
-        <Footer />
-
       </div>
-
-    </div>
-  );
-}
-
-// =====================================================
-// STATUS BADGE
-// =====================================================
-
-function StatusBadge({
-  status,
-}: {
-  status: string;
-}) {
-  const normalized =
-    String(
-      status || ""
-    ).toUpperCase();
-
-  let classes =
-    "bg-gray-100 text-gray-700";
-
-  if (
-    normalized === "READY"
-  ) {
-    classes =
-      "bg-emerald-100 text-emerald-700";
-  } else if (
-    normalized === "DELIVERED"
-  ) {
-    classes =
-      "bg-blue-100 text-blue-700";
-  } else if (
-    normalized === "IN_PROGRESS"
-  ) {
-    classes =
-      "bg-indigo-100 text-indigo-700";
-  } else if (
-    normalized === "WAITING_PARTS"
-  ) {
-    classes =
-      "bg-orange-100 text-orange-700";
-  } else if (
-    normalized === "NOT_REPAIRABLE"
-  ) {
-    classes =
-      "bg-red-100 text-red-700";
-  }
-
-  return (
-    <span
-      className={`inline-flex px-2.5 py-1 rounded-full text-xs font-semibold ${classes}`}
-    >
-      {status || "-"}
-    </span>
-  );
-}
-
-// =====================================================
-// OVERVIEW ROW
-// =====================================================
-
-function OverviewRow({
-  label,
-  value,
-  bg,
-  text,
-}: {
-  label: string;
-  value: number;
-  bg: string;
-  text: string;
-}) {
-  return (
-    <div
-      className={`${bg} rounded-xl p-4 flex items-center justify-between`}
-    >
-
-      <span className="font-medium text-gray-700">
-        {label}
-      </span>
-
-      <span
-        className={`${text} text-xl font-bold`}
-      >
-        {value}
-      </span>
-
     </div>
   );
 }
