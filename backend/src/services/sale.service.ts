@@ -397,7 +397,7 @@ export async function receiveSalePayment(
             },
           });
 
-        // =================================================
+                // =================================================
         // CASH BOOK
         // =================================================
 
@@ -414,7 +414,44 @@ export async function receiveSalePayment(
           },
         });
 
-        return updatedSale;
+        // =================================================
+        // CUSTOMER LEDGER
+        //
+        // Record the actual payment once.
+        //
+        // The payment is not split according to invoice
+        // allocation because this function is already
+        // paying a specific sale.
+        // =================================================
+
+        if (sale.customerId) {
+          await tx.customerLedger.create({
+            data: {
+              customerId:
+                sale.customerId,
+
+              repairJobId:
+                null,
+
+              particulars:
+                `Sales Payment - ${sale.invoiceNumber} (${method})`,
+
+              debit:
+                0,
+
+              credit:
+                amount,
+
+              balance:
+                0,
+
+              createdAt:
+                new Date(),
+            },
+          });
+        }
+
+               return updatedSale;
       }
     );
 

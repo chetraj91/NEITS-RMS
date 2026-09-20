@@ -235,11 +235,12 @@ export async function createCustomerPayment(
           },
         });
 
-        allocations.push({
+                       allocations.push({
           type: "SALE",
           reference:
             sale.invoiceNumber,
-          amount: allocatedAmount,
+          amount:
+            allocatedAmount,
         });
       }
 
@@ -315,10 +316,9 @@ export async function createCustomerPayment(
         allocatedAmount;
     }
 
-    // ===================================================
+       // ===================================================
     // CASH BOOK
     // ===================================================
-
     await tx.cashBook.create({
       data: {
         particulars:
@@ -331,9 +331,43 @@ export async function createCustomerPayment(
     });
 
     // ===================================================
-    // RETURN ALLOCATION RESULT
+    // CUSTOMER LEDGER
+    //
+    // Record the actual customer payment once.
+    //
+    // This is intentionally NOT created inside the
+    // allocation loop because one payment may be
+    // allocated across multiple sales / repair jobs.
     // ===================================================
 
+    await tx.customerLedger.create({
+      data: {
+        customerId:
+          data.customerId,
+
+        repairJobId:
+          null,
+
+        particulars:
+          `Customer Payment - ${customer.fullName} (${paymentMethod})`,
+
+        debit:
+          0,
+
+        credit:
+          amount,
+
+        balance:
+          0,
+
+        createdAt:
+          paymentDate,
+      },
+    });
+
+    // ===================================================
+    // RETURN ALLOCATION RESULT
+    // ===================================================
     return {
       success: true,
       message:

@@ -3,6 +3,20 @@ import { prisma } from "../config/prisma";
 export async function getCustomerLedger(
   customerId: string
 ) {
+  const customer =
+    await prisma.customer.findUnique({
+      where: {
+        id: customerId,
+      },
+      select: {
+        fullName: true,
+      },
+    });
+
+  if (!customer) {
+    throw new Error("Customer not found.");
+  }
+
   // =====================================================
   // 1. GET REPAIR JOBS
   //
@@ -252,6 +266,9 @@ export async function getCustomerLedger(
 
   const salesLedger: any[] = [];
 
+  const legacySalePaymentEntryIds =
+    new Set<string>();
+
   for (const sale of sales) {
     // ---------------------------------------------------
     // SALES INVOICE → DEBIT
@@ -294,10 +311,23 @@ export async function getCustomerLedger(
       },
     });
 
-    // ---------------------------------------------------
-    // SALES PAYMENT → CREDIT
+      // ---------------------------------------------------
+    // SALES PAYMENTS → CREDIT
     //
-    // Sale model stores the current total paid amount.
+    // New customer payments are stored individually in
+    // CustomerLedger with their payment method.
+    //
+    // Older sales may have one cumulative payment row.
+    //
+    // Rules:
+    // 1. Individual payment rows exist:
+    //    use those rows and remove the old cumulative row.
+    //
+    // 2. No individual payment rows exist:
+    //    keep the old cumulative payment row.
+    //
+    // 3. If individual payments cover only part of the
+    //    Sale.paidAmount, preserve the remaining amount.
     // ---------------------------------------------------
 
     const paidAmount =
@@ -308,7 +338,109 @@ export async function getCustomerLedger(
         )
       );
 
-    if (paidAmount > 0) {
+    const salePaymentPrefix =
+      `Sales Payment - ${sale.invoiceNumber}`;
+
+    const individualSalePaymentEntries =
+      otherLedgerEntries.filter(
+        (entry: any) =>
+          String(
+            entry.particulars || ""
+          ).startsWith(
+            `${salePaymentPrefix} (`
+          )
+      );
+
+    const recordedSalePayments =
+      individualSalePaymentEntries.reduce(
+        (
+          sum: number,
+          entry: any
+        ) =>
+          sum +
+          Math.max(
+            0,
+            Number(
+              entry.credit || 0
+            )
+          ),
+        0
+      );
+
+    const legacySalePaymentEntry =
+      otherLedgerEntries.find(
+        (entry: any) =>
+          String(
+            entry.particulars || ""
+          ) === salePaymentPrefix
+      );
+
+    if (
+      individualSalePaymentEntries.length > 0
+    ) {
+      if (
+        legacySalePaymentEntry
+      ) {
+        legacySalePaymentEntryIds.add(
+          String(
+            legacySalePaymentEntry.id
+          )
+        );
+      }
+
+            const remainingSalePayment =
+        legacySalePaymentEntry
+          ? Math.max(
+              0,
+              Number(
+                legacySalePaymentEntry.credit || 0
+              )
+            )
+          : 0;
+
+      if (
+        remainingSalePayment > 0
+      ) {
+        salesLedger.push({
+          id:
+            `sale-payment-residual-${sale.id}`,
+
+          customerId:
+            sale.customerId,
+
+          repairJobId:
+            null,
+
+          particulars:
+            `Sales Payment - ${sale.invoiceNumber}`,
+
+          debit:
+            0,
+
+          credit:
+            remainingSalePayment,
+
+          balance:
+            0,
+
+          createdAt:
+            legacySalePaymentEntry?.createdAt ??
+            sale.createdAt,
+
+          sale: {
+            id:
+              sale.id,
+
+            invoiceNumber:
+              sale.invoiceNumber,
+          },
+        });
+      }
+
+    } else if (
+      paidAmount > 0 &&
+      !legacySalePaymentEntry
+    ) {
       salesLedger.push({
         id:
           `sale-payment-${sale.id}`,
@@ -428,15 +560,189 @@ export async function getCustomerLedger(
     });
   }
 
+    // =====================================================
+  // 7. ACTUAL PAYMENT TRANSACTIONS FROM CASH BOOK
+  //
+  // Cash Book is the source of truth for actual received
+  // payments.
+  //
+  // Old CustomerLedger payment rows and invoice-level
+  // allocation rows are ignored here.
   // =====================================================
-  // 7. COMBINE ALL TRANSACTIONS
+
+  const cashBookPaymentEntries =
+    await prisma.cashBook.findMany({
+      where: {
+        credit: {
+          gt: 0,
+        },
+
+        OR: [
+          {
+            particulars: {
+              startsWith:
+                `Customer Payment - ${customer.fullName} -`,
+            },
+          },
+
+          ...sales.map((sale) => ({
+            particulars: {
+              startsWith:
+                `Sales Payment - ${sale.invoiceNumber} (`,
+            },
+          })),
+
+          ...repairs.map((repair) => ({
+            particulars: {
+              startsWith:
+                `Repair Payment - ${repair.jobNumber} (`,
+            },
+          })),
+        ],
+      },
+
+      orderBy: {
+        createdAt: "asc",
+      },
+    });
+
+  const cashBookPaymentLedger =
+    cashBookPaymentEntries.map(
+      (entry: any) => {
+        const particulars =
+          String(
+            entry.particulars || ""
+          );
+
+        const matchedSale =
+          sales.find(
+            (sale) =>
+              particulars.startsWith(
+                `Sales Payment - ${sale.invoiceNumber} (`
+              )
+          );
+
+        const matchedRepair =
+          repairs.find(
+            (repair) =>
+              particulars.startsWith(
+                `Repair Payment - ${repair.jobNumber} (`
+              )
+          );
+
+        return {
+          id:
+            `cashbook-payment-${entry.id}`,
+
+          customerId:
+
+            customerId,
+
+          repairJobId:
+            matchedRepair?.id ?? null,
+
+          particulars:
+
+            particulars,
+
+          debit:
+            0,
+
+          credit:
+            Math.max(
+              0,
+              Number(
+                entry.credit ?? 0
+              )
+            ),
+
+          balance:
+            0,
+
+          createdAt:
+            entry.createdAt,
+
+          ...(matchedSale
+            ? {
+                sale: {
+                  id:
+                    matchedSale.id,
+
+                  invoiceNumber:
+                    matchedSale.invoiceNumber,
+                },
+              }
+            : {}),
+
+          ...(matchedRepair
+            ? {
+                repairJob:
+                  matchedRepair,
+              }
+            : {}),
+        };
+      }
+    );
+
+  // =====================================================
+  // REMOVE OLD PAYMENT RECORDS
+  //
+  // These records are historical / allocation-level
+  // entries and must not be counted as actual payments.
+  // =====================================================
+
+  const nonPaymentLedgerEntries =
+    otherLedgerEntries.filter(
+      (entry: any) => {
+        const particulars =
+          String(
+            entry.particulars || ""
+          );
+
+        return (
+          !particulars.startsWith(
+            "Customer Payment -"
+          ) &&
+          !particulars.startsWith(
+            "Sales Payment -"
+          ) &&
+          !particulars.startsWith(
+            "Repair Payment ("
+          )
+        );
+      }
+    );
+
+  const cleanedRepairLedger =
+    repairLedger.filter(
+      (entry: any) =>
+        !String(
+          entry.particulars || ""
+        ).startsWith(
+          "Repair Payment ("
+        )
+    );
+
+  const cleanedSalesLedger =
+    salesLedger.filter(
+      (entry: any) =>
+        !String(
+          entry.particulars || ""
+        ).startsWith(
+          "Sales Payment -"
+        )
+    );
+
+  // =====================================================
+  // 8. COMBINE ALL TRANSACTIONS
   // =====================================================
 
   const combinedLedger = [
-    ...otherLedgerEntries,
-    ...repairLedger,
-    ...salesLedger,
+    ...nonPaymentLedgerEntries,
+    ...cleanedRepairLedger,
+    ...cleanedSalesLedger,
     ...salesReturnLedger,
+    ...cashBookPaymentLedger,
   ];
 
   // =====================================================
