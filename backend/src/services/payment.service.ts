@@ -254,12 +254,16 @@ export async function receivePayment(data: {
         diagnosis:
           completeJob.diagnosis,
 
-        estimatedCost:
+                estimatedCost:
           completeJob.estimatedCost,
 
-                totalAmount:
+        discount:
+          completeJob.discount,
+
+        totalAmount:
           finalTotal,
-          advanceAmount:
+
+        advanceAmount:
           completeJob.advanceAmount,
 
         paymentAmount:

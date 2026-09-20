@@ -45,7 +45,10 @@ const SMS_VARIABLES = [
   "{diagnosis}",
   "{estimatedCost}",
   "{totalAmount}",
+  "{discount}",
+  "{finalBill}",
   "{advanceAmount}",
+  "{totalPaid}",
   "{dueAmount}",
   "{expectedDate}",
   "{deliveryDate}",
@@ -168,12 +171,21 @@ export default function MessagesPage() {
     try {
       setTemplatesLoading(true);
 
-      const response =
+            const response =
         await getSmsTemplates();
 
+      const templateData =
+        response?.data?.data ??
+        response?.data ??
+        response ??
+        [];
+
       setTemplates(
-        response?.data || []
+        Array.isArray(templateData)
+          ? templateData
+          : []
       );
+
     } catch (err: any) {
       console.error(
         "LOAD SMS TEMPLATES ERROR:",

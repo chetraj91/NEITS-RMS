@@ -18,11 +18,12 @@ interface RepairJobForSms {
    estimatedCost?: number | null;
   labourCharge?: number | null;
   diagnosisFee?: number | null;
-  discount?: number | null;  totalAmount?: number | null;
+  discount?: number | null; 
+  totalAmount?: number | null;
   advanceAmount?: number | null;
   dueAmount?: number | null;
   paymentAmount?: number | null;
-paidAmount?: number | null;
+  paidAmount?: number | null;
 
 delayReason?: string | null;
 expectedDate?: string | null;
@@ -90,19 +91,28 @@ function replaceVariables(
        "{estimatedCost}":
       String(job.estimatedCost ?? 0),
 
-    "{totalAmount}":
+        "{totalAmount}":
+      String(job.totalAmount ?? 0),
+
+    "{discount}":
+      String(job.discount ?? 0),
+
+    "{finalBill}":
       String(job.totalAmount ?? 0),
 
     "{advanceAmount}":
       String(job.advanceAmount ?? 0),
 
+    "{totalPaid}":
+      String(job.paidAmount ?? 0),
+
     "{dueAmount}":
       String(job.dueAmount ?? 0),
 
-      "{paymentAmount}":
+    "{paymentAmount}":
       String(job.paymentAmount ?? 0),
 
-      "{paidAmount}":
+    "{paidAmount}":
       String(job.paidAmount ?? 0),
 
       "{delayReason}":
