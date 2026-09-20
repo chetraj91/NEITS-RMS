@@ -11,6 +11,7 @@ import {
 import {
   authenticate,
   requirePermission,
+  requireAnyPermission,
 } from "../middleware/auth.middleware";
 
 const router = Router();
@@ -46,7 +47,10 @@ router.get("/:id", getRepairJob);
 // =====================================
 router.put(
   "/:id",
-  requirePermission("repair-jobs.edit"),
+  requireAnyPermission([
+    "repair-jobs.details",
+    "repair-jobs.edit",
+  ]),
   updateRepairJob
 );
 

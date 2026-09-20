@@ -46,9 +46,14 @@ const PERMISSIONS: Permission[] = [
     group: "Main",
   },
   {
-  key: "repair-jobs.edit",
-  label: "Edit Repair Jobs",
-  group: "Main",
+    key: "repair-jobs.details",
+    label: "Repair Job Details",
+    group: "Main",
+  },
+  {
+    key: "repair-jobs.edit",
+    label: "Edit Repair Jobs",
+    group: "Main",
   },
   {
     key: "repair-board",

@@ -196,10 +196,12 @@ export default function AppRoutes() {
           />
            </Route>
 
-          <Route
-            path="/repair-jobs/:id"
-            element={<RepairJobDetailsPage />}
-          />
+                    <Route element={<ProtectedRoute permission="repair-jobs.details" />}>
+            <Route
+              path="/repair-jobs/:id"
+              element={<RepairJobDetailsPage />}
+            />
+          </Route>
 
            <Route element={<ProtectedRoute permission="repair-jobs.edit" />}>
           <Route
