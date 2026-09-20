@@ -12,12 +12,7 @@ import {
 
 const router = Router();
 
-router.use(
-  authenticate,
-  requirePermission(
-    "settings.company"
-  )
-);
+router.use(authenticate);
 
 router.get(
   "/",
@@ -26,6 +21,9 @@ router.get(
 
 router.put(
   "/",
+  requirePermission(
+    "settings.company"
+  ),
   updateCompany
 );
 

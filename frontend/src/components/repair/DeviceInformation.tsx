@@ -2,7 +2,7 @@ import type { ChangeEvent } from "react";
 import { useEffect, useState } from "react";
 
 import { getDeviceTypes } from "../../api/deviceType";
-import { getBrands } from "../../api/brand";
+import { getBrandsByDeviceType } from "../../api/brand";
 
 interface Props {
   data: any;
@@ -139,27 +139,23 @@ export default function DeviceInformation({
     deviceTypeId: string
   ) {
     try {
+
       const res =
-        await getBrands();
+  await getBrandsByDeviceType(
+    deviceTypeId
+  );
 
-      const allBrands =
-        res.data?.data || [];
+const brandsForDeviceType =
+  res.data?.data || [];
 
-      const filteredBrands =
-        allBrands.filter(
-          (brand: any) =>
-            brand.deviceTypeId ===
-            deviceTypeId
-        );
+console.log(
+  "Brands for Device Type:",
+  brandsForDeviceType
+);
 
-      console.log(
-        "Brands for Device Type:",
-        filteredBrands
-      );
-
-      setBrands(
-        filteredBrands
-      );
+setBrands(
+  brandsForDeviceType
+);
     } catch (error) {
       console.error(
         "Unable to load brands:",

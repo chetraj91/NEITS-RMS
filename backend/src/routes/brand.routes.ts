@@ -15,10 +15,7 @@ import {
 
 const router = Router();
 
-router.use(
-  authenticate,
-  requirePermission("settings.brands")
-);
+router.use(authenticate);
 
 // Get brands by Device Type
 router.get(
@@ -27,15 +24,28 @@ router.get(
 );
 
 // Get all brands
-router.get("/", getBrands);
+router.get(
+  "/",
+  requirePermission("settings.brands"),
+  getBrands
+);
 
-// Create brand
-router.post("/", createBrand);
+router.post(
+  "/",
+  requirePermission("settings.brands"),
+  createBrand
+);
 
-// Update brand
-router.put("/:id", updateBrand);
+router.put(
+  "/:id",
+  requirePermission("settings.brands"),
+  updateBrand
+);
 
-// Delete brand
-router.delete("/:id", deleteBrand);
+router.delete(
+  "/:id",
+  requirePermission("settings.brands"),
+  deleteBrand
+);
 
 export default router;

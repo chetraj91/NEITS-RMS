@@ -12,10 +12,7 @@ import {
 
 const router = Router();
 
-router.use(
-  authenticate,
-  requirePermission("settings.device-type-fields")
-);
+router.use(authenticate);
 
 // ===================================
 // Get mapping for one Device Type
@@ -32,6 +29,7 @@ router.get(
 
 router.post(
   "/:deviceTypeId",
+  requirePermission("settings.device-type-fields"),
   saveDeviceTypeFields
 );
 

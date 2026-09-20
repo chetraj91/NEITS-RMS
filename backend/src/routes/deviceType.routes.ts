@@ -8,14 +8,25 @@ import {
 
 const router = Router();
 
-router.use(
-  authenticate,
-  requirePermission("settings.device-types")
-);
+router.use(authenticate);
 
 router.get("/", controller.getDeviceTypes);
-router.post("/", controller.createDeviceType);
-router.put("/:id", controller.updateDeviceType);
-router.delete("/:id", controller.deleteDeviceType);
 
+router.post(
+  "/",
+  requirePermission("settings.device-types"),
+  controller.createDeviceType
+);
+
+router.put(
+  "/:id",
+  requirePermission("settings.device-types"),
+  controller.updateDeviceType
+);
+
+router.delete(
+  "/:id",
+  requirePermission("settings.device-types"),
+  controller.deleteDeviceType
+);
 export default router;

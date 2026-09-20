@@ -14,12 +14,7 @@ import {
 
 const router = Router();
 
-router.use(
-  authenticate,
-  requirePermission(
-    "settings.receiving-print-layout"
-  )
-);
+router.use(authenticate);
 
 router.get(
   "/:documentType",
@@ -28,6 +23,9 @@ router.get(
 
 router.post(
   "/:documentType",
+  requirePermission(
+    "settings.receiving-print-layout"
+  ),
   saveLayout
 );
 
@@ -38,6 +36,9 @@ router.get(
 
 router.post(
   "/:documentType/size",
+  requirePermission(
+    "settings.receiving-print-layout"
+  ),
   savePrintSize
 );
 
