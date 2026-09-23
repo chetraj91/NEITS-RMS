@@ -1338,29 +1338,35 @@ export function buildDetailJobStickerHtml(
    * Only a very small outer margin is used.
    * This removes the large blank area.
    */
+
   .document {
-    width: ${safeWidth}mm;
-    height: ${safeHeight}mm;
+  position: relative;
 
-    margin: 0;
-    padding: 1mm;
+  width: ${safeWidth}mm;
+  height: ${safeHeight}mm;
 
-    overflow: hidden;
-  }
+  margin: 0;
+  padding: 1mm;
+  box-sizing: border-box;
+
+  overflow: hidden;
+}
 
   /*
    * Dashed border around the complete sticker.
    */
 
 .sticker {
-  width: calc(100% - 2mm);
-  height: calc(100% - 2mm);
+  position: relative;
 
-  margin: 1mm;
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  box-sizing: border-box;
 
-  border: .35mm dashed #555;
+  border: none;
 
-  padding: 1.5mm 2mm;
+  padding: 2mm 2.5mm;
 
   overflow: hidden;
 
@@ -1375,19 +1381,22 @@ export function buildDetailJobStickerHtml(
    * This is the important fix.
    */
   .sticker-row {
-    width: 100%;
+  width: 100%;
 
-    display: flex;
-    flex-direction: row;
+  display: flex;
+  flex-direction: row;
 
-    align-items: baseline;
+  align-items: baseline;
 
-    min-width: 0;
+  min-width: 0;
 
-    line-height: 1.12;
+  line-height: 1.12;
 
-    white-space: normal;
-  }
+  white-space: normal;
+
+  position: relative;
+  top: -2mm;
+}
 
   /*
    * Keep labels together.
