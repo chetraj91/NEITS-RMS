@@ -2138,12 +2138,19 @@ async function handleSendFeedbackRequest() {
         />
 
         <div className="mt-6 flex flex-wrap gap-3">
-  <button
-    onClick={saveDiagnosis}
-    className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-3 rounded-lg font-semibold"
-    >
-    Save Diagnosis
-     </button>
+ <button
+  onClick={saveDiagnosis}
+  disabled={job?.status === "DELIVERED"}
+  className={`px-6 py-3 rounded-lg font-semibold text-white ${
+    job?.status === "DELIVERED"
+      ? "bg-gray-400 cursor-not-allowed"
+      : "bg-blue-600 hover:bg-blue-700"
+  }`}
+>
+  {job?.status === "DELIVERED"
+    ? "Diagnosis Locked"
+    : "Save Diagnosis"}
+</button>
 
       <button
       onClick={markNotRepairable}
