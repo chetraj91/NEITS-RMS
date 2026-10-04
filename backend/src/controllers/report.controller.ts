@@ -2,6 +2,7 @@ import { Request, Response } from "express";
 
 import {
   getDashboardReport,
+  getDueOutstandingReport,
 } from "../services/report.service";
 
 export async function dashboardReportController(
@@ -76,6 +77,33 @@ const report =
       message:
         error?.message ||
         "Unable to generate report.",
+    });
+  }
+}
+
+export async function dueOutstandingReportController(
+  req: Request,
+  res: Response
+) {
+  try {
+    const report =
+      await getDueOutstandingReport();
+
+    return res.json({
+      success: true,
+      data: report,
+    });
+  } catch (error: any) {
+    console.error(
+      "DUE OUTSTANDING REPORT ERROR:",
+      error
+    );
+
+    return res.status(500).json({
+      success: false,
+      message:
+        error?.message ||
+        "Unable to generate due outstanding report.",
     });
   }
 }

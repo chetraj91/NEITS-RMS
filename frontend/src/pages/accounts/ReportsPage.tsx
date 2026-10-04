@@ -3,7 +3,11 @@ import {
   useState,
 } from "react";
 
-import { getDashboardReport } from "../../api/report";
+import {
+  getDashboardReport,
+  getDueOutstandingReport,
+} from "../../api/report";
+
 import { getPaymentMethods } from "../../api/paymentMethod";
 import { getCustomers } from "../../api/customer";
 import { getSuppliers } from "../../api/supplier";
@@ -45,11 +49,27 @@ const [customerId, setCustomerId] =
 const [supplierId, setSupplierId] =
   useState("ALL");
 
+const [dueType, setDueType] =
+  useState("ALL");
+
+const [duePartySearch, setDuePartySearch] =
+  useState("");
+
+const [dueReport, setDueReport] =
+  useState<any>(null);
+
+  const [dueReportLoading, setDueReportLoading] =
+    useState(false);
+
+    const [selectedDueParty, setSelectedDueParty] =
+    useState<any>(null);
+
   // =====================================================
   // LOAD REPORT
   // =====================================================
 useEffect(() => {
   loadReport();
+  loadDueReport();
   loadPaymentMethods();
   loadCustomers();
   loadSuppliers();
@@ -164,6 +184,64 @@ async function loadReport() {
       setLoading(false);
     }
   }
+
+    async function loadDueReport() {
+    try {
+      setDueReportLoading(true);
+
+      const response =
+        await getDueOutstandingReport();
+
+      setDueReport(
+        response?.data ?? null
+      );
+    } catch (err) {
+      console.error(
+        "Failed to load due outstanding report:",
+        err
+      );
+
+      setDueReport(null);
+    } finally {
+      setDueReportLoading(false);
+    }
+  }
+
+    const dueParties = [
+    ...(dueReport?.customers ?? []).map(
+      (customer: any) => ({
+        ...customer,
+        partyType: "CUSTOMER",
+      })
+    ),
+    ...(dueReport?.suppliers ?? []).map(
+      (supplier: any) => ({
+        ...supplier,
+        partyType: "SUPPLIER",
+      })
+    ),
+  ].filter((party: any) => {
+    if (dueType !== "ALL" &&
+        party.partyType !== dueType) {
+      return false;
+    }
+
+    const search =
+      duePartySearch.trim().toLowerCase();
+
+    if (!search) {
+      return true;
+    }
+
+    return (
+      String(
+        party.name ?? ""
+      ).toLowerCase().includes(search) ||
+      String(
+        party.phone ?? ""
+      ).toLowerCase().includes(search)
+    );
+  });
 
   // =====================================================
   // FORMAT MONEY
@@ -444,6 +522,383 @@ async function loadReport() {
 
       {report && (
         <>
+                    {/* =================================================
+              DUE / OUTSTANDING
+          ================================================= */}
+
+          <section className="mb-8">
+
+            <div className="flex justify-between items-center mb-4">
+              <h2 className="text-xl font-bold">
+                Due / Outstanding
+              </h2>
+
+              {dueReportLoading && (
+                <span className="text-sm text-gray-500">
+                  Loading...
+                </span>
+              )}
+            </div>
+
+            {/* DUE FILTER */}
+
+            <div className="bg-white rounded-xl shadow p-5 mb-5">
+
+              <div className="flex flex-wrap items-end gap-4">
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Due Type
+                  </label>
+
+                  <select
+                    value={dueType}
+                    onChange={(e) =>
+                      setDueType(e.target.value)
+                    }
+                    className="border rounded-lg p-3 min-w-[200px]"
+                  >
+                    <option value="ALL">
+                      All Due
+                    </option>
+
+                    <option value="CUSTOMER">
+                      Customer Due
+                    </option>
+
+                    <option value="SUPPLIER">
+                      Supplier Due
+                    </option>
+                  </select>
+                </div>
+
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Search Party
+                  </label>
+
+                  <input
+                    type="text"
+                    value={duePartySearch}
+                    onChange={(e) =>
+                      setDuePartySearch(
+                        e.target.value
+                      )
+                    }
+                    placeholder="Name or contact number"
+                    className="border rounded-lg p-3 min-w-[280px]"
+                  />
+                </div>
+
+                <button
+                  type="button"
+                  onClick={() => {
+                    setDueType("ALL");
+                    setDuePartySearch("");
+                  }}
+                  className="bg-gray-200 hover:bg-gray-300 px-5 py-3 rounded-lg"
+                >
+                  Clear
+                </button>
+
+              </div>
+
+            </div>
+
+            {/* SUMMARY */}
+
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-5 mb-5">
+
+              <ReportCard
+                title="Customer Due"
+                value={`Rs. ${money(
+                  dueReport?.summary?.customerDue
+                )}`}
+                className="bg-red-50"
+              />
+
+              <ReportCard
+                title="Repair Due"
+                value={`Rs. ${money(
+                  dueReport?.summary?.repairDue
+                )}`}
+                className="bg-purple-50"
+              />
+
+              <ReportCard
+                title="Sales Due"
+                value={`Rs. ${money(
+                  dueReport?.summary?.salesDue
+                )}`}
+                className="bg-orange-50"
+              />
+
+              <ReportCard
+                title="Supplier Due"
+                value={`Rs. ${money(
+                  dueReport?.summary?.supplierDue
+                )}`}
+                className="bg-blue-50"
+              />
+
+            </div>
+
+            {/* PARTY-WISE OUTSTANDING */}
+
+            <div className="bg-white rounded-xl shadow overflow-hidden">
+
+              <div className="p-5 border-b">
+                <h3 className="text-lg font-semibold">
+                  Outstanding Parties
+                </h3>
+              </div>
+
+              {dueParties.length === 0 ? (
+
+                <div className="p-8 text-center text-gray-500">
+                  No outstanding amount found.
+                </div>
+
+              ) : (
+
+                <div className="overflow-x-auto">
+
+                  <table className="w-full">
+
+                    <thead className="bg-gray-50">
+
+                      <tr>
+                        <th className="text-left p-4">
+                          Party
+                        </th>
+
+                        <th className="text-left p-4">
+                          Type
+                        </th>
+
+                        <th className="text-left p-4">
+                          Contact
+                        </th>
+
+                        <th className="text-right p-4">
+                          Repair Due
+                        </th>
+
+                        <th className="text-right p-4">
+                          Sales Due
+                        </th>
+
+                        <th className="text-right p-4">
+                          Supplier Due
+                        </th>
+
+                        <th className="text-right p-4">
+                          Total Due
+                        </th>
+                      </tr>
+
+                    </thead>
+
+                    <tbody>
+
+                      {dueParties.map(
+                        (party: any) => (
+
+                          <tr
+                          key={`${party.partyType}-${party.id}`}
+                          onClick={() => setSelectedDueParty(party)}
+                          className={`border-t cursor-pointer hover:bg-blue-50 ${
+                          selectedDueParty?.id === party.id &&
+                          selectedDueParty?.partyType === party.partyType
+                          ? "bg-blue-50"
+                           : ""
+                           }`}
+                          >
+
+                            <td className="p-4 font-medium">
+                              {party.name ||
+                                "Unnamed Party"}
+                            </td>
+
+                            <td className="p-4">
+                              {party.partyType}
+                            </td>
+
+                            <td className="p-4">
+                              {party.phone || "-"}
+                            </td>
+
+                            <td className="p-4 text-right">
+                              {party.partyType ===
+                              "CUSTOMER"
+                                ? `Rs. ${money(
+                                    party.repairDue
+                                  )}`
+                                : "-"}
+                            </td>
+
+                            <td className="p-4 text-right">
+                              {party.partyType ===
+                              "CUSTOMER"
+                                ? `Rs. ${money(
+                                    party.salesDue
+                                  )}`
+                                : "-"}
+                            </td>
+
+                            <td className="p-4 text-right">
+                              {party.partyType ===
+                              "SUPPLIER"
+                                ? `Rs. ${money(
+                                    party.supplierDue
+                                  )}`
+                                : "-"}
+                            </td>
+
+                            <td className="p-4 text-right font-semibold">
+                              Rs.{" "}
+                              {money(
+                                party.totalDue
+                              )}
+                            </td>
+
+                          </tr>
+                        )
+                      )}
+
+                    </tbody>
+
+                  </table>
+
+                </div>
+
+              )}
+
+                       </div>
+
+            {selectedDueParty && (
+              <div className="bg-white rounded-xl shadow overflow-hidden mt-5">
+                <div className="p-5 border-b flex justify-between items-center">
+                  <div>
+                    <h3 className="text-lg font-semibold">
+                      Outstanding Details
+                    </h3>
+                    <p className="text-sm text-gray-500 mt-1">
+                      {selectedDueParty.name}
+                      {selectedDueParty.phone
+                        ? ` - ${selectedDueParty.phone}`
+                        : ""}
+                    </p>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() =>
+                      setSelectedDueParty(null)
+                    }
+                    className="bg-gray-200 hover:bg-gray-300 px-4 py-2 rounded-lg"
+                  >
+                    Close
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full">
+                    <thead className="bg-gray-50">
+                      <tr>
+                        <th className="text-left p-4">
+                          Type
+                        </th>
+                        <th className="text-left p-4">
+                          Reference
+                        </th>
+                        <th className="text-left p-4">
+                          Date
+                        </th>
+                        <th className="text-right p-4">
+                          Total
+                        </th>
+                        <th className="text-right p-4">
+                          Paid
+                        </th>
+                        <th className="text-right p-4">
+                          Outstanding
+                        </th>
+                      </tr>
+                    </thead>
+
+                    <tbody>
+                      {[
+                        ...(selectedDueParty.repairDetails ?? []),
+                        ...(selectedDueParty.salesDetails ?? []),
+                        ...(selectedDueParty.purchaseDetails ?? []),
+                      ].map((item: any) => (
+                        <tr
+                          key={`${item.type}-${item.id}`}
+                          className="border-t"
+                        >
+                          <td className="p-4">
+                            {item.type}
+                          </td>
+
+                          <td className="p-4 font-medium">
+                            {item.reference || "-"}
+                          </td>
+
+                          <td className="p-4">
+                            {item.date
+                              ? new Date(
+                                  item.date
+                                ).toLocaleDateString(
+                                  "en-GB"
+                                )
+                              : "-"}
+                          </td>
+
+                          <td className="p-4 text-right">
+                            Rs.{" "}
+                            {money(
+                              item.totalAmount
+                            )}
+                          </td>
+
+                          <td className="p-4 text-right">
+                            Rs.{" "}
+                            {money(
+                              item.paidAmount
+                            )}
+                          </td>
+
+                          <td className="p-4 text-right font-semibold">
+                            Rs.{" "}
+                            {money(
+                              item.dueAmount
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+
+                      {[
+                        ...(selectedDueParty.repairDetails ?? []),
+                        ...(selectedDueParty.salesDetails ?? []),
+                        ...(selectedDueParty.purchaseDetails ?? []),
+                      ].length === 0 && (
+                        <tr>
+                          <td
+                            colSpan={6}
+                            className="p-8 text-center text-gray-500"
+                          >
+                            No outstanding transactions found.
+                          </td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
+          </section>
+         
           {/* =================================================
               SALES
           ================================================= */}
@@ -457,13 +912,36 @@ async function loadReport() {
             <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
 
               <ReportCard
-                title="Total Sales"
-                value={`Rs. ${money(
-                  report.sales
-                    ?.totalSales
-                )}`}
-                className="bg-blue-50"
-              />
+  title="Total Sales"
+  value={
+    <div className="text-lg leading-7">
+      <div>
+        Sale: Rs.{" "}
+        {money(
+          report.sales
+            ?.grossSales
+        )}
+      </div>
+
+      <div className="text-red-600">
+        Sales Return: Rs.{" "}
+        {money(
+          report.sales
+            ?.salesReturns
+        )}
+      </div>
+
+      <div className="font-bold">
+        Net Sales: Rs.{" "}
+        {money(
+          report.sales
+            ?.totalSales
+        )}
+      </div>
+    </div>
+  }
+  className="bg-blue-50"
+/>
 
               <ReportCard
                 title="Amount Received"
@@ -509,14 +987,37 @@ async function loadReport() {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
 
-              <ReportCard
-                title="Total Purchases"
-                value={`Rs. ${money(
-                  report.purchases
-                    ?.totalPurchases
-                )}`}
-                className="bg-orange-50"
-              />
+             <ReportCard
+  title="Total Purchase"
+  value={
+    <div className="text-lg leading-7">
+      <div>
+        Purchase: Rs.{" "}
+        {money(
+          report.purchases
+            ?.grossPurchases
+        )}
+      </div>
+
+      <div className="text-red-600">
+        Purchase Return: Rs.{" "}
+        {money(
+          report.purchases
+            ?.purchaseReturns
+        )}
+      </div>
+
+      <div className="font-bold">
+        Net Purchase: Rs.{" "}
+        {money(
+          report.purchases
+            ?.totalPurchases
+        )}
+      </div>
+    </div>
+  }
+  className="bg-orange-50"
+/>
 
               <ReportCard
                 title="Amount Paid"
@@ -562,14 +1063,28 @@ async function loadReport() {
 
             <div className="grid grid-cols-1 md:grid-cols-4 gap-5">
 
-              <ReportCard
-                title="Repair Charges"
-                value={`Rs. ${money(
-                  report.repairs
-                    ?.charges
-                )}`}
-                className="bg-purple-50"
-              />
+             <ReportCard
+  title="Total Repair Charge"
+  value={
+    <div className="text-lg font-bold leading-7">
+      <div>
+        Repair: Rs.{" "}
+        {money(report.repairs?.charges)}
+      </div>
+
+      <div className="text-red-600">
+        Repair Refund: Rs.{" "}
+        {money(report.repairs?.refunds)}
+      </div>
+
+      <div>
+        Net Repair Charge: Rs.{" "}
+        {money(report.repairs?.netCharges)}
+      </div>
+    </div>
+  }
+  className="bg-purple-50"
+/>
 
               <ReportCard
                 title="Payments Received"
@@ -842,7 +1357,7 @@ function ReportCard({
   className = "bg-white",
 }: {
   title: string;
-  value: string | number;
+ value: React.ReactNode;
   className?: string;
 }) {
   return (

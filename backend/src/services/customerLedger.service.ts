@@ -28,21 +28,27 @@ export async function getCustomerLedger(
   // =====================================================
 
   const repairs =
-    await prisma.repairJob.findMany({
-      where: {
-        customerId,
-      },
-      include: {
-        payments: {
-          orderBy: {
-            createdAt: "asc",
-          },
+  await prisma.repairJob.findMany({
+    where: {
+      customerId,
+    },
+    include: {
+      payments: {
+        orderBy: {
+          createdAt: "asc",
         },
       },
-      orderBy: {
-        receivedDate: "asc",
+
+      repairRefunds: {
+        orderBy: {
+          createdAt: "asc",
+        },
       },
-    });
+    },
+    orderBy: {
+      receivedDate: "asc",
+    },
+  });
 
   // =====================================================
   // 2. GET EXISTING NON-REPAIR CUSTOMER LEDGER ENTRIES
@@ -244,6 +250,94 @@ export async function getCustomerLedger(
         },
       });
     }
+        // ===================================================
+    // REPAIR REFUND
+    //
+    // Refund adjustment  → CREDIT
+    // Refund paid        → DEBIT
+    //
+    // Together they leave the customer's final balance
+    // unchanged while recording the refund clearly.
+    // ===================================================
+
+    for (const refund of repair.repairRefunds) {
+      const refundAmount =
+        Math.max(
+          0,
+          Number(refund.amount ?? 0)
+        );
+
+      if (refundAmount <= 0) {
+        continue;
+      }
+
+      // Refund Adjustment → CREDIT
+      repairLedger.push({
+        id:
+          `repair-refund-adjustment-${refund.id}`,
+
+        customerId:
+          repair.customerId,
+
+        repairJobId:
+          repair.id,
+
+        particulars:
+          `Repair Refund Adjustment - ${repair.jobNumber} (${refund.refundMethod})`,
+
+        debit:
+          0,
+
+        credit:
+          refundAmount,
+
+        balance:
+          0,
+
+        createdAt:
+          refund.createdAt,
+
+        repairJob:
+          repair,
+
+        repairRefund:
+          refund,
+      });
+
+      // Refund Paid → DEBIT
+      repairLedger.push({
+        id:
+          `repair-refund-paid-${refund.id}`,
+
+        customerId:
+          repair.customerId,
+
+        repairJobId:
+          repair.id,
+
+        particulars:
+          `Repair Refund Paid - ${repair.jobNumber} (${refund.refundMethod})`,
+
+        debit:
+          refundAmount,
+
+        credit:
+          0,
+
+        balance:
+          0,
+
+        createdAt:
+          refund.createdAt,
+
+        repairJob:
+          repair,
+
+        repairRefund:
+          refund,
+      });
+    }
+
   }
 
   // =====================================================

@@ -29,10 +29,12 @@ import {
 import {
   receivePayment,
   getPayments,
+  createRepairRefund,
+  getRepairRefunds,
   sendDueAmountReminder,
   sendRepairDelayedSms,
-   sendPartsRequired,
-   sendCustomerApprovalRequired,
+  sendPartsRequired,
+  sendCustomerApprovalRequired,
 } from "../api/payment";
 
 import {
@@ -130,7 +132,20 @@ const [
   setPaymentMethods,
 ] = useState<any[]>([]);
 
-  const [paymentRemarks, setPaymentRemarks] = useState("");
+ const [paymentRemarks, setPaymentRemarks] = useState("");
+
+const [repairRefunds, setRepairRefunds] = useState<any[]>([]);
+const [refundAmount, setRefundAmount] = useState(0);
+const [refundMethod, setRefundMethod] = useState("Cash");
+const [refundRemarks, setRefundRemarks] = useState("");
+const [showRefundSection, setShowRefundSection] = useState(false);
+
+const currentUser = JSON.parse(
+  sessionStorage.getItem("user") || "{}"
+);
+
+const isAdministrator =
+  currentUser.role === "Administrator";
 
   // =========================================================
   // DELIVERY CONFIRMATION
@@ -156,10 +171,11 @@ useEffect(() => {
   if (!id) return;
 
   loadJob();
-  loadInventory();
-  loadRepairParts();
-  loadPayments();
-  loadPaymentMethods();
+loadInventory();
+loadRepairParts();
+loadPayments();
+loadRepairRefunds();
+loadPaymentMethods();
 
   getFeedbackRequestStatus(id)
     .then((response) => {
@@ -377,31 +393,54 @@ async function loadInventory() {
   }
 
   // =========================================================
-  // LOAD PAYMENTS
-  // =========================================================
+// LOAD PAYMENTS
+// =========================================================
 
-  async function loadPayments() {
-    try {
-      const res = await getPayments(id!);
+async function loadPayments() {
+  try {
+    const res = await getPayments(id!);
 
-      console.log("Payments API:", res);
+    console.log("Payments API:", res);
 
-      setPayments(
-        Array.isArray(res.data)
-          ? res.data
-          : []
-      );
-    } catch (err) {
-      console.error(
-        "Failed to load payments:",
-        err
-      );
-    }
+    setPayments(
+      Array.isArray(res.data)
+        ? res.data
+        : []
+    );
+  } catch (err) {
+    console.error(
+      "Failed to load payments:",
+      err
+    );
   }
+}
 
-  // =========================================================
-  // MONEY HELPERS
-  // =========================================================
+// =========================================================
+// LOAD REPAIR REFUNDS
+// =========================================================
+
+async function loadRepairRefunds() {
+  try {
+    const res = await getRepairRefunds(id!);
+
+    console.log("Repair Refunds API:", res);
+
+    setRepairRefunds(
+      Array.isArray(res.data)
+        ? res.data
+        : []
+    );
+  } catch (err) {
+    console.error(
+      "Failed to load repair refunds:",
+      err
+    );
+  }
+}
+
+// =========================================================
+// MONEY HELPERS
+// =========================================================
 
   function getPartUnitPrice(part: any): number {
     return Number(
@@ -521,6 +560,23 @@ const payableAmount = Math.max(
 const refund = Math.max(
   0,
   totalPaid - finalTotal
+);
+
+const totalRefunded = useMemo(() => {
+  return repairRefunds.reduce(
+    (sum: number, item: any) =>
+      sum +
+      Math.max(
+        0,
+        Number(item?.amount ?? 0)
+      ),
+    0
+  );
+}, [repairRefunds]);
+
+const refundableAmount = Math.max(
+  0,
+  totalPaid - totalRefunded
 );
   // =========================================================
   // STATUS
@@ -877,20 +933,21 @@ async function deliverJob() {
   // =========================================================
   // RECEIVE PAYMENT
   // =========================================================
-
   async function savePayment() {
     if (paymentAmount <= 0) {
-      alert(
-        "Please enter a valid payment amount."
-      );
-
+      alert("Please enter a valid payment amount.");
       return;
     }
 
-       if (payableAmount <= 0 && refund <= 0) {
-      alert("There is no outstanding amount for this invoice.");
-       return;
-       }
+    if (!paymentMethod) {
+  alert("Please select a payment method.");
+  return;
+}
+
+    if (payableAmount <= 0 && refund <= 0) {
+     alert("There is no outstanding amount for this invoice.");
+     return;
+     }
 
     try {
       await receivePayment({
@@ -900,19 +957,16 @@ async function deliverJob() {
         remarks: paymentRemarks,
       });
 
-      alert(
-        "Payment received successfully."
-      );
+      alert("Payment received successfully.");
 
       setPaymentAmount(0);
-      setPaymentMethod("Cash");
+      setPaymentMethod("");
       setPaymentRemarks("");
 
       await loadPayments();
-      await reloadJobPreserveScroll();
+      await loadJob();
     } catch (err: any) {
       console.error(err);
-
       alert(
         err.response?.data?.message ||
           err.message ||
@@ -920,6 +974,63 @@ async function deliverJob() {
       );
     }
   }
+
+  // =========================================================
+  // CREATE REPAIR REFUND
+  // =========================================================
+
+  async function saveRepairRefund() {
+    if (refundAmount <= 0) {
+      alert("Please enter a valid refund amount.");
+      return;
+    }
+
+    if (!refundMethod) {
+  alert("Please select a refund method.");
+  return;
+}
+
+    if (refundableAmount <= 0) {
+      alert("There is no refundable amount available.");
+      return;
+    }
+
+    if (refundAmount > refundableAmount) {
+      alert(
+        `Refund amount cannot exceed the remaining refundable amount of Rs. ${refundableAmount.toFixed(2)}.`
+      );
+      return;
+    }
+
+    try {
+      await createRepairRefund({
+        repairJobId: id!,
+        amount: refundAmount,
+        refundMethod,
+        remarks: refundRemarks,
+      });
+
+      alert("Repair refund recorded successfully.");
+
+      setRefundAmount(0);
+      setRefundMethod("");
+      setRefundRemarks("");
+
+      await loadRepairRefunds();
+    } catch (err: any) {
+      console.error(err);
+
+      alert(
+        err.response?.data?.message ||
+          err.message ||
+          "Failed to create repair refund."
+      );
+    }
+  }
+
+  // =========================================================
+  // ADD PART
+  // =========================================================
 
   // =========================================================
 // SEND DUE AMOUNT REMINDER SMS
@@ -2979,12 +3090,14 @@ className={`px-5 py-3 rounded-lg font-semibold text-white whitespace-nowrap ${
 <select
   value={paymentMethod}
   onChange={(e) =>
-    setPaymentMethod(
-      e.target.value
-    )
-     }
+    setPaymentMethod(e.target.value)
+  }
   className="w-full border rounded-lg p-3"
-  >
+>
+  <option value="">
+    Select Payment Method
+  </option>
+
   {paymentMethods.map(
     (method: any) => (
       <option
@@ -2993,9 +3106,9 @@ className={`px-5 py-3 rounded-lg font-semibold text-white whitespace-nowrap ${
       >
         {method.name}
       </option>
-        )
-        )}
-       </select>
+    )
+  )}
+</select>
 
           </div>
 
@@ -3021,27 +3134,158 @@ className={`px-5 py-3 rounded-lg font-semibold text-white whitespace-nowrap ${
 
           </div>
 
-         {/* BUTTONS */}
+         {/* REPAIR REFUND */}
 
-         <div className="flex items-end gap-2">
+   {showRefundSection && isAdministrator && (
+  <div className="col-span-4 border-t pt-6 mt-2">
 
-        {/* RECEIVE PAYMENT */}
+  <div className="flex items-center justify-between mb-4">
 
-        <button
-        onClick={savePayment}
-        disabled={
-        paymentAmount <= 0
-       }
-        className={`flex-1 rounded-lg p-3 font-semibold text-white ${
-        paymentAmount <= 0
+    <h3 className="text-lg font-semibold">
+      Repair Refund
+    </h3>
+
+    <p className="text-sm font-semibold text-red-600">
+      Remaining Refundable:
+      {" "}
+      Rs. {refundableAmount.toFixed(2)}
+    </p>
+
+  </div>
+
+  <div className="grid grid-cols-4 gap-4">
+
+    {/* REFUND AMOUNT */}
+
+    <div>
+
+      <label className="font-semibold block mb-2">
+        Refund Amount
+      </label>
+
+      <input
+        type="number"
+        min={0}
+        max={refundableAmount}
+        value={refundAmount}
+        onChange={(e) =>
+          setRefundAmount(
+            Math.max(
+              0,
+              Number(e.target.value) || 0
+            )
+          )
+        }
+        className="w-full border rounded-lg p-3"
+        placeholder="Enter refund amount"
+      />
+
+    </div>
+
+    {/* REFUND METHOD */}
+
+    <div>
+
+      <label className="font-semibold block mb-2">
+        Refund Method
+      </label>
+
+      <select
+        value={refundMethod}
+        onChange={(e) =>
+          setRefundMethod(e.target.value)
+        }
+        className="w-full border rounded-lg p-3"
+      >
+        <option value="">
+        Select Refund Method
+        </option>
+        
+        <option value="Cash">
+          Cash
+        </option>
+
+        <option value="Bank">
+          Bank
+        </option>
+
+        <option value="FonePay">
+          FonePay
+        </option>
+
+        <option value="eSewa">
+          eSewa
+        </option>
+      </select>
+
+    </div>
+
+    {/* REFUND REMARKS */}
+
+    <div className="col-span-2">
+
+      <label className="font-semibold block mb-2">
+        Refund Remarks
+      </label>
+
+      <input
+        type="text"
+        value={refundRemarks}
+        onChange={(e) =>
+          setRefundRemarks(e.target.value)
+        }
+        className="w-full border rounded-lg p-3"
+        placeholder="Optional"
+      />
+
+    </div>
+
+  </div>
+
+</div>
+)}
+
+{/* BUTTONS */}
+
+<div className="col-span-4 flex items-end gap-2">
+
+  {/* RECEIVE PAYMENT */}
+
+  <button
+    type="button"
+    onClick={savePayment}
+    disabled={paymentAmount <= 0}
+    className={`flex-1 rounded-lg p-3 font-semibold text-white ${
+      paymentAmount <= 0
         ? "bg-gray-400 cursor-not-allowed"
         : "bg-green-600 hover:bg-green-700"
-        }`}
-        >
-        Receive Payment
-       </button>
+    }`}
+  >
+    Receive Payment
+  </button>
 
-        </div>
+  {/* REPAIR REFUND */}
+
+  <button
+    type="button"
+    onClick={saveRepairRefund}
+    disabled={
+      refundableAmount <= 0 ||
+      refundAmount <= 0 ||
+      refundAmount > refundableAmount
+    }
+    className={`flex-1 rounded-lg p-3 font-semibold text-white ${
+      refundableAmount <= 0 ||
+      refundAmount <= 0 ||
+      refundAmount > refundableAmount
+        ? "bg-gray-400 cursor-not-allowed"
+        : "bg-red-600 hover:bg-red-700"
+    }`}
+  >
+    Repair Refund
+  </button>
+
+</div>
 
         </div>
 
@@ -3218,6 +3462,31 @@ className={`px-5 py-3 rounded-lg font-semibold text-white whitespace-nowrap ${
         </button>
 
       </div>
+
+      {/* =====================================================
+    REQUEST REFUND
+===================================================== */}
+
+<div className="mt-4 mb-8 flex justify-start">
+
+  <button
+    type="button"
+   onClick={() => {
+  if (!isAdministrator) {
+    alert(
+      "Only Administrator can process a repair refund."
+    );
+    return;
+  }
+
+  setShowRefundSection(true);
+}}
+    className="px-5 py-3 rounded-lg font-semibold text-white bg-red-600 hover:bg-red-700"
+  >
+    Request Refund
+  </button>
+
+</div>
 
       {showPrintDocuments && (
         <div className="fixed inset-0 bg-black/60 flex items-center justify-center z-[70]">

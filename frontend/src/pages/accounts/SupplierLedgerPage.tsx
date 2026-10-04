@@ -204,15 +204,11 @@ async function loadPaymentMethods() {
           id
         );
 
-        setLedger(
+              setLedger(
         Array.isArray(data)
-        ? [...data].sort(
-         (a: any, b: any) =>
-          new Date(b.date).getTime() -
-          new Date(a.date).getTime()
-         )
-         : []
-         );
+          ? data
+          : []
+      );
 
     } catch (error) {
       console.error(
@@ -1824,8 +1820,9 @@ async function loadPaymentMethods() {
         }
       }
 
-      return true;
+          return true;
     })
+    .reverse()
     .map(
       (
         item: any

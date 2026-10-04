@@ -203,21 +203,26 @@ export async function getDashboardReport(
   const totalPurchaseReturns =
     purchaseReturns._sum.totalAmount ?? 0;
 
-  // Net purchases after Purchase Returns
-  const totalPurchases =
-    Math.max(
-      0,
-      grossPurchases -
-        totalPurchaseReturns
-    );
+    const supplierPurchaseTotals =
+    await prisma.purchase.groupBy({
+      by: ["supplierId"],
+      where: {
+        ...(purchaseDateFilter
+          ? {
+              purchaseDate:
+                purchaseDateFilter,
+            }
+          : {}),
+      },
+      _sum: {
+        totalAmount: true,
+        paidAmount: true,
+      },
+    });
 
-  // Initial payments made when the purchase was created
-  const initialPurchasePaid =
-    purchases._sum.paidAmount ?? 0;
-
-  // Later payments made through Supplier Payment
-  const supplierPayments =
-    await prisma.supplierPayment.aggregate({
+  const supplierPaymentTotals =
+    await prisma.supplierPayment.groupBy({
+      by: ["supplierId"],
       where: {
         ...(purchaseDateFilter
           ? {
@@ -226,26 +231,147 @@ export async function getDashboardReport(
             }
           : {}),
       },
-
       _sum: {
         amount: true,
       },
     });
 
-  const laterSupplierPayments =
-    supplierPayments._sum.amount ?? 0;
+  const supplierCreditReturnTotals =
+    await prisma.purchaseReturn.groupBy({
+      by: ["supplierId"],
+      where: {
+        ...(purchaseDateFilter
+          ? {
+              returnDate:
+                purchaseDateFilter,
+            }
+          : {}),
+        refundMethod:
+          "SUPPLIER_CREDIT",
+      },
+      _sum: {
+        totalAmount: true,
+      },
+    });
 
-  // Total amount paid to suppliers
-  const purchasePaid =
-    initialPurchasePaid +
-    laterSupplierPayments;
+  const supplierIds =
+    new Set<string>();
 
-  // Current supplier outstanding
+  supplierPurchaseTotals.forEach(
+    (supplier) =>
+      supplierIds.add(
+        supplier.supplierId
+      )
+  );
+
+  supplierPaymentTotals.forEach(
+    (supplier) =>
+      supplierIds.add(
+        supplier.supplierId
+      )
+  );
+
+  supplierCreditReturnTotals.forEach(
+    (supplier) =>
+      supplierIds.add(
+        supplier.supplierId
+      )
+  );
+
+  const supplierDueBySupplier =
+    new Map<string, number>();
+
+  supplierIds.forEach(
+    (supplierId) => {
+      const purchaseData =
+        supplierPurchaseTotals.find(
+          (supplier) =>
+            supplier.supplierId ===
+            supplierId
+        );
+
+      const paymentData =
+        supplierPaymentTotals.find(
+          (supplier) =>
+            supplier.supplierId ===
+            supplierId
+        );
+
+      const returnData =
+        supplierCreditReturnTotals.find(
+          (supplier) =>
+            supplier.supplierId ===
+            supplierId
+        );
+
+      const supplierPurchaseTotal =
+        Number(
+          purchaseData?._sum.totalAmount ??
+            0
+        );
+
+      const supplierInitialPaid =
+        Number(
+          purchaseData?._sum.paidAmount ??
+            0
+        );
+
+      const supplierLaterPaid =
+        Number(
+          paymentData?._sum.amount ??
+            0
+        );
+
+      const supplierCreditReturn =
+        Number(
+          returnData?._sum.totalAmount ??
+            0
+        );
+        
+
+      const supplierDue =
+        Math.max(
+          0,
+          supplierPurchaseTotal -
+            supplierInitialPaid -
+            supplierLaterPaid -
+            supplierCreditReturn
+        );
+
+      supplierDueBySupplier.set(
+        supplierId,
+        supplierDue
+      );
+    }
+  );
+
   const supplierDue =
+    Array.from(
+      supplierDueBySupplier.values()
+    ).reduce(
+      (sum, amount) =>
+        sum + amount,
+      0
+    );
+
+  const totalPurchases =
     Math.max(
       0,
-      totalPurchases -
-        purchasePaid
+      grossPurchases -
+        totalPurchaseReturns
+    );
+
+  const purchasePaid =
+    Number(
+      purchases._sum.paidAmount ?? 0
+    ) +
+    supplierPaymentTotals.reduce(
+      (sum, supplier) =>
+        sum +
+        Number(
+          supplier._sum.amount ?? 0
+        ),
+      0
     );
 
   const totalPurchasesCount =
@@ -304,6 +430,45 @@ const repairCharges =
       return sum + finalAmount;
     },
     0
+  );
+
+  // =====================================================
+// REPAIR REFUNDS
+// =====================================================
+
+const repairRefunds =
+  await prisma.cashBook.aggregate({
+    where: {
+      ...(cashBookDateFilter
+        ? {
+            createdAt:
+              cashBookDateFilter,
+          }
+        : {}),
+      particulars: {
+        startsWith:
+          "Repair Refund -",
+      },
+      debit: {
+        gt: 0,
+      },
+    },
+
+    _sum: {
+      debit: true,
+    },
+  });
+
+const repairRefund =
+  Number(
+    repairRefunds._sum.debit ?? 0
+  );
+
+const netRepairCharges =
+  Math.max(
+    0,
+    repairCharges -
+      repairRefund
   );
 
 // =====================================================
@@ -724,8 +889,8 @@ if (repairJobIds.length > 0) {
   // =====================================================
 
   const totalIncome =
-    totalSales +
-    repairCharges;
+  totalSales +
+  netRepairCharges;
 
   const netResult =
     totalIncome -
@@ -737,32 +902,39 @@ if (repairJobIds.length > 0) {
   // =====================================================
 
   return {
-    sales: {
-      totalSales,
-      received: salesReceived,
-      due: salesDue,
-      invoiceCount:
-        totalSalesInvoices,
-    },
-
+   sales: {
+  grossSales,
+  salesReturns:
+    totalSalesReturns,
+  totalSales,
+  received: salesReceived,
+  due: salesDue,
+  invoiceCount:
+    totalSalesInvoices,
+},
     purchases: {
-      totalPurchases,
-      paid: purchasePaid,
-      due: supplierDue,
-      purchaseCount:
-        totalPurchasesCount,
+    grossPurchases,
+    purchaseReturns:
+    totalPurchaseReturns,
+    totalPurchases,
+    paid: purchasePaid,
+    due: supplierDue,
+    purchaseCount:
+    totalPurchasesCount,
     },
 
     repairs: {
-      charges: repairCharges,
-      paymentsReceived:
-        repairPaymentsReceived,
-      due:
-        repairCustomerDue,
-      jobCount:
-        totalRepairJobs,
-    },
-
+  charges: repairCharges,
+  refunds: repairRefund,
+  netCharges:
+    netRepairCharges,
+  paymentsReceived:
+    repairPaymentsReceived,
+  due:
+    repairCustomerDue,
+  jobCount:
+    totalRepairJobs,
+},
         payments: {
       received:
         filteredPaymentReceived,
@@ -789,5 +961,963 @@ if (repairJobIds.length > 0) {
 
     totalCustomers,
     totalInventory,
+  };
+}
+
+export async function getDueOutstandingReport() {
+  // =====================================================
+  // CUSTOMER OUTSTANDING
+  // =====================================================
+
+  const customers = await prisma.customer.findMany({
+    select: {
+      id: true,
+      fullName: true,
+      companyName: true,
+      phone: true,
+
+     repairJobs: {
+  select: {
+    id: true,
+    jobNumber: true,
+    receivedDate: true,
+    estimatedCost: true,
+    diagnosisFee: true,
+    labourCharge: true,
+    discount: true,
+    advanceAmount: true,
+    balanceAmount: true,
+
+    payments: {
+      select: {
+        amount: true,
+        paymentMode: true,
+        createdAt: true,
+      },
+    },
+
+    repairRefunds: {
+      select: {
+        amount: true,
+        refundMethod: true,
+        remarks: true,
+        createdAt: true,
+      },
+    },
+  },
+},
+
+      sales: {
+  select: {
+    id: true,
+    invoiceNumber: true,
+    saleDate: true,
+    grandTotal: true,
+    paidAmount: true,
+    dueAmount: true,
+  },
+      },
+    },
+  });
+
+  const repairCashBookPayments =
+    await prisma.cashBook.findMany({
+      where: {
+        credit: {
+          gt: 0,
+        },
+        particulars: {
+          startsWith: "Repair Payment -",
+        },
+      },
+      select: {
+        particulars: true,
+        credit: true,
+      },
+    });
+
+  const repairCashBookPaymentByJob =
+    new Map<string, number>();
+
+  repairCashBookPayments.forEach(
+    (payment) => {
+      const particulars =
+        String(payment.particulars || "");
+
+      const match =
+  particulars.match(
+    /^Repair Payment - (JOB-\d+)/
+  );
+
+      if (!match) {
+        return;
+      }
+
+      const jobNumber = match[1];
+
+      const current =
+        repairCashBookPaymentByJob.get(
+          jobNumber
+        ) ?? 0;
+
+      repairCashBookPaymentByJob.set(
+        jobNumber,
+        current +
+          Number(payment.credit ?? 0)
+      );
+    }
+  );
+
+    const salesCashBookPayments =
+    await prisma.cashBook.findMany({
+      where: {
+        credit: {
+          gt: 0,
+        },
+        particulars: {
+          startsWith: "Sales Payment -",
+        },
+      },
+      select: {
+        particulars: true,
+        credit: true,
+      },
+    });
+
+  const salesCashBookPaymentByInvoice =
+    new Map<string, number>();
+
+  salesCashBookPayments.forEach(
+    (payment) => {
+      const particulars =
+        String(payment.particulars || "");
+
+      const match =
+        particulars.match(
+          /^Sales Payment - (BILL-\d+)/
+        );
+
+      if (!match) {
+        return;
+      }
+
+      const invoiceNumber = match[1];
+
+      const current =
+        salesCashBookPaymentByInvoice.get(
+          invoiceNumber
+        ) ?? 0;
+
+      salesCashBookPaymentByInvoice.set(
+        invoiceNumber,
+        current +
+          Number(payment.credit ?? 0)
+      );
+    }
+  );
+
+  const customerCashBookPayments =
+    await prisma.cashBook.findMany({
+      where: {
+        credit: {
+          gt: 0,
+        },
+        particulars: {
+          startsWith: "Customer Payment -",
+        },
+      },
+    select: {
+  id: true,
+  particulars: true,
+  credit: true,
+  createdAt: true,
+},
+    });
+
+  const customerCashBookPaymentByName =
+    new Map<string, number>();
+
+  customerCashBookPayments.forEach(
+    (payment) => {
+      const particulars =
+        String(payment.particulars || "");
+
+      if (
+        !particulars.startsWith(
+          "Customer Payment - "
+        )
+      ) {
+        return;
+      }
+
+     const customerName =
+  particulars
+    .replace(
+      /^Customer Payment - /,
+      ""
+    )
+    .split(" - ")[0]
+    .trim();
+
+      if (!customerName) {
+        return;
+      }
+
+      const current =
+        customerCashBookPaymentByName.get(
+          customerName
+        ) ?? 0;
+
+      customerCashBookPaymentByName.set(
+        customerName,
+        current +
+          Number(payment.credit ?? 0)
+      );
+    }
+  );
+
+    const customerCashBookPaymentEntriesByName =
+    new Map<
+      string,
+      Array<{
+        id: string;
+        amount: number;
+        paymentMethod: string;
+        createdAt: Date;
+      }>
+    >();
+
+  customerCashBookPayments.forEach(
+    (payment) => {
+      const particulars =
+        String(payment.particulars || "");
+
+      const customerName =
+        particulars
+          .replace(
+            /^Customer Payment - /,
+            ""
+          )
+          .split(" - ")[0]
+          .trim();
+
+      if (!customerName) {
+        return;
+      }
+
+      const paymentMethod =
+        particulars
+          .split(" - ")
+          .pop()
+          ?.trim()
+          .toUpperCase() || "";
+
+      const existing =
+        customerCashBookPaymentEntriesByName.get(
+          customerName
+        ) ?? [];
+
+      existing.push({
+        id: String(payment.id),
+        amount: Number(payment.credit ?? 0),
+        paymentMethod,
+        createdAt: payment.createdAt,
+      });
+
+      customerCashBookPaymentEntriesByName.set(
+        customerName,
+        existing
+      );
+    }
+  );
+
+    const customerCashBookPaymentRemainingById =
+    new Map<string, number>();
+
+  customerCashBookPayments.forEach(
+    (payment) => {
+      customerCashBookPaymentRemainingById.set(
+        String(payment.id),
+        Number(payment.credit ?? 0)
+      );
+    }
+  );
+
+  const customerPaymentAllocatedToRepairByJob =
+    new Map<string, number>();
+
+  customers.forEach((customer) => {
+    const customerName =
+      String(
+        customer.fullName ||
+          customer.companyName ||
+          ""
+      ).trim();
+
+    const customerPayments =
+      customerCashBookPaymentEntriesByName.get(
+        customerName
+      ) ?? [];
+
+    customer.repairJobs.forEach(
+      (job) => {
+        job.payments.forEach(
+          (payment) => {
+            const paymentAmount =
+              Math.max(
+                0,
+                Number(payment.amount ?? 0)
+              );
+
+            if (paymentAmount <= 0) {
+              return;
+            }
+
+            const paymentMethod =
+              String(
+                payment.paymentMode || ""
+              )
+                .trim()
+                .toUpperCase();
+
+            const paymentCreatedAt =
+              new Date(
+                payment.createdAt
+              ).getTime();
+
+            let remainingAllocation =
+              paymentAmount;
+
+            for (
+              const customerPayment of
+                customerPayments
+            ) {
+              if (
+                remainingAllocation <=
+                0
+              ) {
+                break;
+              }
+
+              const availableAmount =
+                customerCashBookPaymentRemainingById.get(
+                  customerPayment.id
+                ) ?? 0;
+
+              if (
+                availableAmount <= 0
+              ) {
+                continue;
+              }
+
+              if (
+                customerPayment.paymentMethod !==
+                  paymentMethod ||
+                new Date(
+                  customerPayment.createdAt
+                ).getTime() !==
+                  paymentCreatedAt
+              ) {
+                continue;
+              }
+
+              const matchedAmount =
+                Math.min(
+                  remainingAllocation,
+                  availableAmount
+                );
+
+              customerCashBookPaymentRemainingById.set(
+                customerPayment.id,
+                availableAmount -
+                  matchedAmount
+              );
+
+              const current =
+                customerPaymentAllocatedToRepairByJob.get(
+                  job.jobNumber
+                ) ?? 0;
+
+              customerPaymentAllocatedToRepairByJob.set(
+                job.jobNumber,
+                current +
+                  matchedAmount
+              );
+
+              remainingAllocation -=
+                matchedAmount;
+            }
+          }
+        );
+      }
+    );
+  });
+
+  const salesReturns =
+    await prisma.salesReturn.findMany({
+      where: {
+        refundMethod:
+          "CUSTOMER_CREDIT",
+      },
+      select: {
+        customerId: true,
+        totalAmount: true,
+      },
+    });
+
+  const customerCreditReturnsByCustomer =
+    new Map<string, number>();
+
+  salesReturns.forEach(
+    (salesReturn) => {
+      if (!salesReturn.customerId) {
+        return;
+      }
+
+      const current =
+        customerCreditReturnsByCustomer.get(
+          salesReturn.customerId
+        ) ?? 0;
+
+      customerCreditReturnsByCustomer.set(
+        salesReturn.customerId,
+        current +
+          Number(
+            salesReturn.totalAmount ?? 0
+          )
+      );
+    }
+  );
+
+  const customerOutstanding =
+    customers
+      .map((customer) => {
+                const repairDetails =
+          customer.repairJobs
+            .map((job) => {
+   const finalAmount =
+  Math.max(
+    0,
+    Number(
+      job.estimatedCost ?? 0
+    ) +
+      Number(
+        job.diagnosisFee ?? 0
+      ) +
+      Number(
+        job.labourCharge ?? 0
+      ) -
+      Number(
+        job.discount ?? 0
+      )
+  );
+
+              const advanceAmount =
+                Math.max(
+                  0,
+                  Number(
+                    job.advanceAmount ?? 0
+                  )
+                );
+
+            const additionalPayments =
+           (repairCashBookPaymentByJob.get(
+           job.jobNumber
+           ) ?? 0) +
+           (customerPaymentAllocatedToRepairByJob.get(
+            job.jobNumber
+            ) ?? 0);
+
+           const refundedAmount =
+           job.repairRefunds.reduce(
+          (refundSum, refund) =>
+           refundSum +
+           Number(
+          refund.amount ?? 0
+          ),
+         0
+        );
+
+          const due =
+          Math.max(
+      0,
+      finalAmount -
+      advanceAmount -
+      additionalPayments
+      );
+
+    return {
+    type: "REPAIR",
+    id: job.id,
+      reference:
+    job.jobNumber,
+
+                date:
+                  job.receivedDate,
+                totalAmount:
+  finalAmount,
+
+paidAmount:
+  advanceAmount +
+  additionalPayments,
+
+refundedAmount:
+  refundedAmount,
+
+dueAmount:
+  due,
+              };
+            })
+            .filter(
+              (item) =>
+                item.dueAmount > 0
+            );
+        const repairDue =
+          customer.repairJobs.reduce(
+            (sum, job) => {
+  const finalAmount =
+  Math.max(
+    0,
+    Number(
+      job.estimatedCost ?? 0
+    ) +
+      Number(
+        job.diagnosisFee ?? 0
+      ) +
+      Number(
+        job.labourCharge ?? 0
+      ) -
+      Number(
+        job.discount ?? 0
+      )
+  );
+              const advanceAmount =
+                Math.max(
+                  0,
+                  Number(
+                    job.advanceAmount ?? 0
+                  )
+                );
+
+             const additionalPayments =
+  (repairCashBookPaymentByJob.get(
+    job.jobNumber
+  ) ?? 0) +
+  (customerPaymentAllocatedToRepairByJob.get(
+    job.jobNumber
+  ) ?? 0);
+
+          const due =
+  Math.max(
+    0,
+    finalAmount -
+      advanceAmount -
+      additionalPayments
+  );
+
+              return sum + due;
+            },
+            0
+          );
+          
+           const repairOverpayment =
+  customer.repairJobs.reduce(
+    (sum, job) => {
+      const finalAmount =
+  Math.max(
+    0,
+    Number(
+      job.estimatedCost ?? 0
+    ) +
+      Number(
+        job.diagnosisFee ?? 0
+      ) +
+      Number(
+        job.labourCharge ?? 0
+      ) -
+      Number(
+        job.discount ?? 0
+      )
+  );
+
+      const advanceAmount =
+        Math.max(
+          0,
+          Number(
+            job.advanceAmount ?? 0
+          )
+        );
+
+      const additionalPayments =
+        repairCashBookPaymentByJob.get(
+          job.jobNumber
+        ) ??
+        0;
+
+      const allocatedCustomerPayment =
+        customerPaymentAllocatedToRepairByJob.get(
+          job.jobNumber
+        ) ??
+        0;
+
+      const totalPaid =
+        advanceAmount +
+        additionalPayments +
+        allocatedCustomerPayment;
+
+      const overpayment =
+        Math.max(
+          0,
+          totalPaid -
+            finalAmount
+        );
+
+      return sum + overpayment;
+    },
+    0
+  );
+
+                  const salesDetails =
+          customer.sales
+            .map((sale) => ({
+              type: "SALE",
+              id: sale.id,
+              reference:
+                sale.invoiceNumber,
+              date:
+                sale.saleDate,
+              totalAmount:
+                Number(
+                  sale.grandTotal ?? 0
+                ),
+              dueAmount:
+                Math.max(
+                  0,
+                  Number(
+                    sale.dueAmount ?? 0
+                  )
+                ),
+            }))
+            .filter(
+              (item) =>
+                item.dueAmount > 0
+            );
+
+        const originalSalesDue =
+  customer.sales.reduce(
+    (sum, sale) => {
+      const actualSalesPayments =
+        salesCashBookPaymentByInvoice.get(
+          sale.invoiceNumber
+        ) ?? 0;
+
+      const due =
+        Math.max(
+          0,
+          Number(sale.grandTotal ?? 0) -
+            actualSalesPayments
+        );
+
+      return sum + due;
+    },
+    0
+  );
+        const salesCreditReturns =
+          customerCreditReturnsByCustomer.get(
+            customer.id
+          ) ?? 0;
+
+          const customerPaymentKey =
+  String(
+    customer.fullName ||
+      customer.companyName ||
+      ""
+  ).trim();
+
+const totalCustomerPayments =
+  customerCashBookPaymentByName.get(
+    customerPaymentKey
+  ) ?? 0;
+
+const allocatedCustomerPaymentsToRepair =
+  customer.repairJobs.reduce(
+    (sum, job) =>
+      sum +
+      (customerPaymentAllocatedToRepairByJob.get(
+        job.jobNumber
+      ) ?? 0),
+    0
+  );
+
+const standaloneCustomerPayments =
+  Math.max(
+    0,
+    totalCustomerPayments -
+      allocatedCustomerPaymentsToRepair
+  );
+
+  const salesDue =
+  Math.max(
+    0,
+    customer.sales.reduce(
+      (sum, sale) =>
+        sum +
+        Math.max(
+          0,
+          Number(
+            sale.dueAmount ?? 0
+          )
+        ),
+      0
+    )
+  );
+
+const totalDue =
+  Math.max(
+    0,
+    repairDue +
+      originalSalesDue -
+      salesCreditReturns -
+      standaloneCustomerPayments -
+      repairOverpayment
+  );
+
+                return {
+          id: customer.id,
+          partyType: "CUSTOMER",
+
+          name:
+          customer.fullName ||
+          customer.companyName,
+
+          phone: customer.phone,
+
+          customerDue:
+            totalDue,
+
+          repairDue,
+
+          salesDue,
+
+          totalDue,
+
+          repairDetails,
+
+          salesDetails,
+        };
+
+      })
+      .filter(
+        (customer) =>
+          customer.totalDue > 0
+      );
+
+    // =====================================================
+  // SUPPLIER OUTSTANDING
+  // =====================================================
+
+  const suppliers = await prisma.supplier.findMany({
+    select: {
+      id: true,
+      companyName: true,
+      phone: true,
+
+     purchases: {
+  select: {
+    id: true,
+    purchaseNumber: true,
+    purchaseDate: true,
+    totalAmount: true,
+    paidAmount: true,
+    dueAmount: true,
+    supplierInvoiceNumber: true,
+  },
+},
+    payments: {
+  select: {
+    amount: true,
+  },
+},
+
+      purchaseReturns: {
+        select: {
+          totalAmount: true,
+          refundAmount: true,
+          refundMethod: true,
+        },
+      },
+    },
+  });
+
+  const supplierOutstanding = suppliers
+    .map((supplier) => {
+      const purchaseTotal =
+        supplier.purchases.reduce(
+          (sum, purchase) =>
+            sum +
+            Number(
+              purchase.totalAmount ?? 0
+            ),
+          0
+        );
+
+      const initialPaid =
+        supplier.purchases.reduce(
+          (sum, purchase) =>
+            sum +
+            Number(
+              purchase.paidAmount ?? 0
+            ),
+          0
+        );
+
+      const laterPaid =
+        supplier.payments.reduce(
+          (sum, payment) =>
+            sum +
+            Number(
+              payment.amount ?? 0
+            ),
+          0
+        );
+
+      // =================================================
+      // PURCHASE RETURNS
+      //
+      // Supplier Credit reduces the amount we owe.
+      // Cash Refund does not reduce supplier credit,
+      // because the supplier has already returned cash.
+      // =================================================
+
+      const supplierCreditReturns =
+        supplier.purchaseReturns.reduce(
+          (sum, purchaseReturn) => {
+            if (
+              purchaseReturn.refundMethod ===
+              "SUPPLIER_CREDIT"
+            ) {
+              return (
+                sum +
+                Number(
+                  purchaseReturn.totalAmount ??
+                    purchaseReturn.refundAmount ??
+                    0
+                )
+              );
+            }
+
+            return sum;
+          },
+          0
+        );
+
+      const totalDue = Math.max(
+        0,
+        purchaseTotal -
+          initialPaid -
+          laterPaid -
+          supplierCreditReturns
+      );
+
+           const purchaseDetails =
+  supplier.purchases
+    .map((purchase: any) => {
+      const totalAmount =
+        Number(purchase.totalAmount ?? 0);
+      const paidAmount =
+        Number(purchase.paidAmount ?? 0);
+      const dueAmount =
+        Math.max(
+          0,
+          Number(purchase.dueAmount ?? 0)
+        );
+
+      return {
+        type: "PURCHASE",
+        id: purchase.id,
+        reference:
+          purchase.purchaseNumber ??
+          purchase.supplierInvoiceNumber ??
+          null,
+        date:
+          purchase.purchaseDate ??
+          null,
+        totalAmount,
+        paidAmount,
+        dueAmount,
+      };
+    })
+    .filter((item: any) => item.dueAmount > 0);
+
+      return {
+  id: supplier.id,
+  partyType: "SUPPLIER",
+  name: supplier.companyName,
+  phone: supplier.phone,
+
+  supplierDue: totalDue,
+
+  purchaseDetails,
+
+  totalDue,
+};
+    })
+    .filter(
+      (supplier) =>
+        supplier.totalDue > 0
+    );
+  // =====================================================
+  // SUMMARY
+  // =====================================================
+
+  const customerDue =
+    customerOutstanding.reduce(
+      (sum, customer) =>
+        sum +
+        customer.totalDue,
+      0
+    );
+
+  const repairDue =
+    customerOutstanding.reduce(
+      (sum, customer) =>
+        sum +
+        customer.repairDue,
+      0
+    );
+
+  const salesDue =
+    customerOutstanding.reduce(
+      (sum, customer) =>
+        sum +
+        customer.salesDue,
+      0
+    );
+
+  const supplierDue =
+    supplierOutstanding.reduce(
+      (sum, supplier) =>
+        sum +
+        supplier.totalDue,
+      0
+    );
+
+  return {
+    summary: {
+      customerDue,
+      repairDue,
+      salesDue,
+      supplierDue,
+      totalCustomerDue:
+        customerDue,
+      totalSupplierDue:
+        supplierDue,
+    },
+
+    customers:
+      customerOutstanding,
+
+    suppliers:
+      supplierOutstanding,
   };
 }

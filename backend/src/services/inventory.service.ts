@@ -484,13 +484,21 @@ export async function updateInventory(
       cleanOptional(data.model);
   }
 
-  if (
+  const oldPurchasePrice =
+    Number(existing.purchasePrice || 0);
+
+  const newPurchasePrice =
     data.purchasePrice !== undefined
+      ? nonNegativeNumber(
+          data.purchasePrice
+        )
+      : undefined;
+
+  if (
+    newPurchasePrice !== undefined
   ) {
     updateData.purchasePrice =
-      nonNegativeNumber(
-        data.purchasePrice
-      );
+      newPurchasePrice;
   }
 
   if (
@@ -586,17 +594,154 @@ export async function updateInventory(
    * cannot be changed.
    */
   const inventory =
-    await prisma.inventory.update({
-      where: {
-        id,
-      },
+    await prisma.$transaction(
+      async (tx) => {
+        // =================================================
+        // CORRECT PURCHASE ACCOUNTING
+        // =================================================
+        //
+        // Only correct historical PurchaseItems that were
+        // originally saved with purchasePrice = 0 when the
+        // Inventory Purchase Price is being corrected from
+        // 0 to a real value.
+        //
+        // Existing non-zero PurchaseItem prices are never
+        // changed.
+        // =================================================
 
-      data: updateData,
+        if (
+          oldPurchasePrice === 0 &&
+          newPurchasePrice !== undefined &&
+          newPurchasePrice > 0
+        ) {
+          const purchaseItems =
+            await tx.purchaseItem.findMany({
+              where: {
+                inventoryId: id,
+                purchasePrice: 0,
+              },
 
-      include: {
-        supplier: true,
-      },
-    });
+              select: {
+                id: true,
+                purchaseId: true,
+                quantity: true,
+                total: true,
+              },
+            });
+
+          const purchaseDifferences =
+            new Map<string, number>();
+
+          for (const purchaseItem of purchaseItems) {
+            const newItemTotal =
+              Number(purchaseItem.quantity) *
+              newPurchasePrice;
+
+            const oldItemTotal =
+              Number(purchaseItem.total || 0);
+
+            const difference =
+              newItemTotal -
+              oldItemTotal;
+
+            await tx.purchaseItem.update({
+              where: {
+                id: purchaseItem.id,
+              },
+
+              data: {
+                purchasePrice:
+                  newPurchasePrice,
+
+                total:
+                  newItemTotal,
+              },
+            });
+
+            purchaseDifferences.set(
+              purchaseItem.purchaseId,
+              (
+                purchaseDifferences.get(
+                  purchaseItem.purchaseId
+                ) || 0
+              ) + difference
+            );
+          }
+
+          // -----------------------------------------------
+          // UPDATE AFFECTED PURCHASE TOTALS
+          // -----------------------------------------------
+
+          for (const [
+            purchaseId,
+            difference,
+          ] of purchaseDifferences) {
+            const purchase =
+              await tx.purchase.findUnique({
+                where: {
+                  id: purchaseId,
+                },
+
+                select: {
+                  totalAmount: true,
+                  paidAmount: true,
+                },
+              });
+
+            if (!purchase) {
+              continue;
+            }
+
+            const newTotalAmount =
+              Math.max(
+                0,
+                Number(
+                  purchase.totalAmount || 0
+                ) + difference
+              );
+
+            const newDueAmount =
+              Math.max(
+                0,
+                newTotalAmount -
+                  Number(
+                    purchase.paidAmount || 0
+                  )
+              );
+
+            await tx.purchase.update({
+              where: {
+                id: purchaseId,
+              },
+
+              data: {
+                totalAmount:
+                  newTotalAmount,
+
+                dueAmount:
+                  newDueAmount,
+              },
+            });
+          }
+        }
+
+        // -----------------------------------------------
+        // UPDATE INVENTORY
+        // -----------------------------------------------
+
+        return tx.inventory.update({
+          where: {
+            id,
+          },
+
+          data: updateData,
+
+          include: {
+            supplier: true,
+          },
+        });
+      }
+    );
 
   // =====================================================
   // AUTOMATIC EXCEL BACKUP

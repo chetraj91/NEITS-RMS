@@ -1,4 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+} from "react";
+
 import type {
   Dispatch,
   ReactNode,
@@ -208,6 +214,19 @@ function stockStatusLabel(
 ========================================================= */
 
 export default function InventoryPage() {
+
+  const inventoryScrollRef =
+  useRef<HTMLDivElement>(null);
+
+const inventoryHorizontalRef =
+  useRef<HTMLDivElement>(null);
+
+  const inventoryTableRef =
+  useRef<HTMLTableElement>(null);
+
+  const inventoryHorizontalContentRef =
+  useRef<HTMLDivElement>(null);
+
   const navigate = useNavigate();
 
   const [inventory, setInventory] =
@@ -465,6 +484,95 @@ useEffect(() => {
         refreshSettings
       );
   }, []);
+
+useEffect(() => {
+  if (loading) {
+    return;
+  }
+
+  const tableScroll =
+    inventoryScrollRef.current;
+
+  const horizontalScroll =
+    inventoryHorizontalRef.current;
+
+  const table =
+    inventoryTableRef.current;
+
+  const horizontalContent =
+    inventoryHorizontalContentRef.current;
+
+  if (
+    !tableScroll ||
+    !horizontalScroll ||
+    !table ||
+    !horizontalContent
+  ) {
+    return;
+  }
+
+  const updateScrollbarWidth = () => {
+    horizontalContent.style.width =
+      `${table.scrollWidth}px`;
+
+    horizontalScroll.scrollLeft =
+      tableScroll.scrollLeft;
+  };
+
+  const syncFromTable = () => {
+    if (
+      horizontalScroll.scrollLeft !==
+      tableScroll.scrollLeft
+    ) {
+      horizontalScroll.scrollLeft =
+        tableScroll.scrollLeft;
+    }
+  };
+
+  const syncFromHorizontal = () => {
+    if (
+      tableScroll.scrollLeft !==
+      horizontalScroll.scrollLeft
+    ) {
+      tableScroll.scrollLeft =
+        horizontalScroll.scrollLeft;
+    }
+  };
+
+  updateScrollbarWidth();
+
+  tableScroll.addEventListener(
+    "scroll",
+    syncFromTable
+  );
+
+  horizontalScroll.addEventListener(
+    "scroll",
+    syncFromHorizontal
+  );
+
+  window.addEventListener(
+    "resize",
+    updateScrollbarWidth
+  );
+
+  return () => {
+    tableScroll.removeEventListener(
+      "scroll",
+      syncFromTable
+    );
+
+    horizontalScroll.removeEventListener(
+      "scroll",
+      syncFromHorizontal
+    );
+
+    window.removeEventListener(
+      "resize",
+      updateScrollbarWidth
+    );
+  };
+}, [loading]);
 
 
   /* =========================================================
@@ -1152,12 +1260,23 @@ useEffect(() => {
               No inventory items found.
             </div>
 
-          ) : (
+         ) : (
 
-            <div className="overflow-x-auto">
+  <>
+    <div
+      ref={inventoryScrollRef}
+          className="overflow-auto max-h-[70vh] relative [&::-webkit-scrollbar]:hidden"
+           style={{
+          scrollbarWidth: "none",
+            msOverflowStyle: "none",
+           }}
+            >
 
-              <table className="w-full min-w-[1200px] border-collapse">
-
+               <table
+              ref={inventoryTableRef}
+              className="w-full min-w-[1200px] border-collapse"
+               >
+ 
                 <thead className="bg-gray-100">
 
                   <tr>
@@ -1166,16 +1285,18 @@ useEffect(() => {
                       (field) => (
 
                         <th
-                          key={
-                            field.key
-                          }
-                          className="border p-3 text-left whitespace-nowrap"
-                        >
-                          {field.label}
-                        </th>
+                         key={field.key}
+                         className={`border p-3 text-left whitespace-nowrap ${
+                          field.key === "itemName"
+                          ? "w-[220px] max-w-[220px]"
+                               : ""
+                           }`}
+                            >
+                            {field.label}
+                             </th>
 
-                      )
-                    )}
+                           )
+                          )}
 
                     <th className="border p-3 text-center">
                       Actions
@@ -1251,13 +1372,30 @@ useEffect(() => {
 
                 </tbody>
 
-              </table>
+</table>
 
-            </div>
+</div>
 
-          )}
+<div
+  ref={inventoryHorizontalRef}
+  className="w-full overflow-x-auto bg-white border-t"
+  style={{
+    scrollbarWidth: "auto",
+  }}
+>
+  <div
+    ref={inventoryHorizontalContentRef}
+    className="h-5"
+    style={{
+      width: "1200px",
+    }}
+  />
+          </div>
 
-        </div>
+        </>
+      )}
+
+      </div>
 
       </div>
 

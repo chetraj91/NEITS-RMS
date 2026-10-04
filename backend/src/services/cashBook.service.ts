@@ -293,6 +293,33 @@ const purchaseReturnSupplierMap = new Map(
         repairJobMap.get(jobNumber) || "";
     }
 
+        // =====================================================
+    // REPAIR REFUND
+    // =====================================================
+
+    if (
+      particulars.startsWith(
+        "Repair Refund - "
+      )
+    ) {
+      const remaining =
+        particulars
+          .replace(
+            "Repair Refund - ",
+            ""
+          )
+          .trim();
+
+      const jobNumber =
+        remaining
+          .split(" (")[0]
+          .trim();
+
+      customerName =
+        repairJobMap.get(jobNumber) || "";
+    }
+
+
     // =====================================================
     // SALES PAYMENT
     // =====================================================

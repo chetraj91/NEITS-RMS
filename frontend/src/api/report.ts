@@ -40,3 +40,11 @@ export async function getDashboardReport(
 
   return res.data;
 }
+
+export async function getDueOutstandingReport() {
+  const res = await api.get(
+    "/reports/due-outstanding"
+  );
+
+  return res.data;
+}

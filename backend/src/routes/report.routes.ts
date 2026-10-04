@@ -1,5 +1,9 @@
 import { Router } from "express";
-import { dashboardReportController } from "../controllers/report.controller";
+
+import {
+  dashboardReportController,
+  dueOutstandingReportController,
+} from "../controllers/report.controller";
 
 import {
   authenticate,
@@ -16,5 +20,10 @@ router.use(
 );
 
 router.get("/dashboard", dashboardReportController);
+
+router.get(
+  "/due-outstanding",
+  dueOutstandingReportController
+);
 
 export default router;

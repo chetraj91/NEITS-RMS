@@ -81,3 +81,33 @@ export async function sendCustomerApprovalRequired(
 
   return res.data;
 }
+
+// ==============================
+// Create Repair Refund
+// ==============================
+export async function createRepairRefund(data: {
+  repairJobId: string;
+  amount: number;
+  refundMethod?: string;
+  remarks?: string;
+}) {
+  const res = await api.post(
+    "/payments/refund",
+    data
+  );
+
+  return res.data;
+}
+
+// ==============================
+// Get Repair Refund History
+// ==============================
+export async function getRepairRefunds(
+  repairJobId: string
+) {
+  const res = await api.get(
+    `/payments/${repairJobId}/refunds`
+  );
+
+  return res.data;
+}
