@@ -80,7 +80,7 @@ const [inventorySearch, setInventorySearch] =
   // =====================================================
 
   const [paymentMethod, setPaymentMethod] =
-    useState("CASH");
+  useState("");
 
     const [
   paymentMethods,
@@ -110,9 +110,9 @@ const [inventorySearch, setInventorySearch] =
   ] = useState(0);
 
   const [
-    receiveMethod,
-    setReceiveMethod,
-  ] = useState("CASH");
+  receiveMethod,
+  setReceiveMethod,
+] = useState("");
 
   const [
     receiveRemarks,
@@ -148,18 +148,6 @@ async function loadPaymentMethods() {
         ? methods
         : []
     );
-if (
-  methods.length > 0 &&
-  !methods.some(
-   (method: any) =>
-      method.code ===
-      paymentMethod
-  )
-) {
-  setPaymentMethod(
-    methods[0].code
-  );
-}
 
   } catch (error) {
     console.error(
@@ -380,6 +368,12 @@ if (
   // =====================================================
 
   async function handleCreateSale() {
+
+    if (!paymentMethod) {
+  alert("Please select a payment method.");
+  return;
+}
+
     if (
       saleItems.length === 0
     ) {
@@ -487,9 +481,7 @@ setQuantity(1);
       setDiscount(0);
       setSaleItems([]);
 
-      setPaymentMethod(
-        "CASH"
-      );
+     setPaymentMethod("");
 
       setPaidAmount(0);
 
@@ -527,9 +519,7 @@ setQuantity(1);
     setDiscount(0);
     setSaleItems([]);
 
-    setPaymentMethod(
-      "CASH"
-    );
+    setPaymentMethod("");
 
     setPaidAmount(0);
 
@@ -561,9 +551,7 @@ setQuantity(1);
 
     setReceiveAmount(0);
 
-    setReceiveMethod(
-      "CASH"
-    );
+    setReceiveMethod("");
 
     setReceiveRemarks("");
   }
@@ -573,6 +561,10 @@ setQuantity(1);
   // =====================================================
 
   async function handleReceivePayment() {
+    if (!receiveMethod) {
+  alert("Please select a payment method.");
+  return;
+}
     if (
       !selectedSale
     ) {
@@ -1503,7 +1495,9 @@ setQuantity(1);
                   }
                   className="border rounded-lg p-3 w-full mt-1"
                 >
-
+                <option value="">
+                 Select Payment Method
+                 </option>
                      {paymentMethods.map(
           (method) => (
           <option
@@ -1767,6 +1761,9 @@ setQuantity(1);
       }
        className="border rounded-lg p-3 w-full mt-1"
        >
+        <option value="">
+        Select Payment Method
+       </option>
       {paymentMethods.map(
        (method: any) => (
       <option

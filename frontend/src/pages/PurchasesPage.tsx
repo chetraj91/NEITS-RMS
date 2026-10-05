@@ -352,7 +352,7 @@ async function loadData() {
     );
 
     setInvoiceNumber("");
-    setPaymentMethod("CASH");
+    setPaymentMethod("");
     setRemarks("");
     setDiscount(0);
     setTax(0);
@@ -376,7 +376,11 @@ async function loadData() {
   // SAVE PURCHASE
   // =====================================================
 
-  async function handleSavePurchase() {
+   async function handleSavePurchase() {
+    if (!paymentMethod) {
+  alert("Please select a payment method.");
+  return;
+   }
     if (!supplierId) {
       alert(
         "Please select a supplier."
@@ -900,6 +904,10 @@ async function loadData() {
       }
      className="border rounded-lg p-3 w-full mt-1"
       >
+     <option value="">
+      Select Payment Method
+      </option>
+
      {paymentMethods.map(
        (method: any) => (
       <option
