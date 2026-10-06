@@ -112,10 +112,10 @@ async function loadLedger() {
              purchaseItem.quantity || 0
              ),
 
-              purchasePrice:
-                Number(
-                  purchaseItem.purchasePrice || 0
-                ),
+             purchasePrice:
+              Number(
+              inventory.purchasePrice || 0
+              ),
 
               currentStock:
                 Number(
