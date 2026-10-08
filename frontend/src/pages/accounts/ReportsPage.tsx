@@ -64,6 +64,9 @@ const [dueReport, setDueReport] =
     const [selectedDueParty, setSelectedDueParty] =
     useState<any>(null);
 
+    const [showDueOnly, setShowDueOnly] =
+    useState(false);
+
   // =====================================================
   // LOAD REPORT
   // =====================================================
@@ -498,7 +501,22 @@ async function loadReport() {
             {loading
               ? "Generating..."
               : "Generate Report"}
-          </button>
+                    </button>
+
+          <label className="flex items-center gap-2 px-3">
+            <input
+              type="checkbox"
+              checked={showDueOnly}
+              onChange={(e) =>
+                setShowDueOnly(e.target.checked)
+              }
+              className="h-4 w-4"
+            />
+
+            <span className="text-sm font-medium">
+              Show Due / Outstanding Only
+            </span>
+          </label>
 
           <button
             type="button"
@@ -520,13 +538,15 @@ async function loadReport() {
         </div>
       )}
 
-      {report && (
-        <>
-                    {/* =================================================
-              DUE / OUTSTANDING
-          ================================================= */}
+       {report && (
+       <>
+        {showDueOnly && (
+       <>
+        {/* =================================================
+            DUE / OUTSTANDING
+        ================================================= */}
 
-          <section className="mb-8">
+        <section className="mb-8">
 
             <div className="flex justify-between items-center mb-4">
               <h2 className="text-xl font-bold">
@@ -897,11 +917,15 @@ async function loadReport() {
                 </div>
               </div>
             )}
-          </section>
-         
-          {/* =================================================
-              SALES
-          ================================================= */}
+            </section>
+              </>
+            )}
+
+          {!showDueOnly && (
+            <>
+              {/* =================================================
+                  SALES
+              ================================================= */}
 
           <section className="mb-8">
 
@@ -1339,7 +1363,10 @@ async function loadReport() {
 
             </div>
 
-          </section>
+           </section>
+            </>
+          )}
+
         </>
       )}
 
