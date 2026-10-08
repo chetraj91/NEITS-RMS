@@ -583,52 +583,31 @@ if (initialAdvance > 0) {
    // =======================================
 
       if (result) {
-       try {
-        await sendJobReceivedSms({
-      id: result.id,
-
-      jobNumber:
-        result.jobNumber,
-
-      brand:
-        result.brand,
-
-      model:
-        result.model,
-
-      serialNumber:
-        result.serialNumber,
-
-      deviceType:
-        result.deviceType,
-
-      complaint:
-        result.complaint,
-
-      customer:
-        result.customer
-          ? {
-              id:
-                result.customer.id,
-
-              fullName:
-                result.customer.fullName,
-
-              phone:
-                result.customer.phone,
-            }
-          : null,
-           });
-          } catch (error) {
-          // SMS failure must NEVER
-          // prevent repair job creation.
-
-          console.error(
-           "JOB RECEIVED SMS ERROR:",
-           error
-          );
+  void sendJobReceivedSms({
+    id: result.id,
+    jobNumber: result.jobNumber,
+    brand: result.brand,
+    model: result.model,
+    serialNumber: result.serialNumber,
+    deviceType: result.deviceType,
+    complaint: result.complaint,
+    customer: result.customer
+      ? {
+          id: result.customer.id,
+          fullName: result.customer.fullName,
+          phone: result.customer.phone,
         }
-       }
+      : null,
+  }).catch((error) => {
+    // SMS failure must NEVER
+    // prevent repair job creation.
+
+    console.error(
+      "JOB RECEIVED SMS ERROR:",
+      error
+    );
+  });
+}
        // =========================================
       // AUTOMATIC EXCEL BACKUP
       // =========================================

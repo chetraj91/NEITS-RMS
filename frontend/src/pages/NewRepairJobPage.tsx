@@ -67,6 +67,7 @@ const customerId =
   // =====================================================
 
   const [customer, setCustomer] = useState<any>(null);
+ const [saving, setSaving] = useState(false); 
   const [
   customerLayoutFields,
   setCustomerLayoutFields,
@@ -710,7 +711,11 @@ useEffect(() => {
   // =====================================================
 
   async function handleSave() {
-    try {
+  if (saving) return;
+
+  setSaving(true);
+
+  try {
       // =================================================
       // CUSTOMER VALIDATION
       // =================================================
@@ -942,7 +947,7 @@ setPrintStickers(false);
 
 setShowPrintOptions(true);
 
-    } catch (err: any) {
+        } catch (err: any) {
       console.error(
         "======================================"
       );
@@ -969,6 +974,8 @@ setShowPrintOptions(true);
         err.message ||
         "Unable to save repair job."
       );
+    } finally {
+      setSaving(false);
     }
   }
 
@@ -4230,12 +4237,13 @@ if (printStickers) {
     <div className="mt-8 pb-10">
 
       <button
-        type="button"
-        onClick={handleSave}
-        className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-lg shadow-lg"
-      >
-        Save Repair Job
-      </button>
+      type="button"
+       onClick={handleSave}
+       disabled={saving}
+      className="bg-green-600 hover:bg-green-700 disabled:bg-red-600 disabled:cursor-not-allowed text-white px-8 py-3 rounded-lg shadow-lg"
+       >
+       {saving ? "Saving..." : "Save Repair Job"}
+       </button>
 
      </div>
     </>
